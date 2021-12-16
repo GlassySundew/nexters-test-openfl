@@ -13,6 +13,7 @@ private class Cell {
 	public var g : Int;
 	public var h : Int;
 	public var f : Int;
+	public var potentialF : Int;
 	public var parent : Cell;
 	public var destroyedWalls : Int;
 	public var wallbreakingParent : Cell;
@@ -23,17 +24,18 @@ private class Cell {
 		this.g = 0;
 		this.h = 0;
 		this.f = 0;
+		this.potentialF = 0;
 		this.destroyedWalls = 0;
 	}
 
-	public function clone() : Cell {
-		var cell = new Cell(x, y);
-		cell.g = g;
-		cell.h = h;
-		cell.f = f;
-		cell.destroyedWalls = destroyedWalls;
-		return cell;
-	}
+	// public function clone() : Cell {
+	// 	var cell = new Cell(x, y);
+	// 	cell.g = g;
+	// 	cell.h = h;
+	// 	cell.f = f;
+	// 	cell.destroyedWalls = destroyedWalls;
+	// 	return cell;
+	// }
 }
 
 class AStar {
@@ -283,7 +285,7 @@ class AStar {
 
 			for ( adjCell in adjCells ) {
 
-				if ( (!closed.has(adjCell) || (cell.g < adjCell.g - 20)) && (cell.parent != adjCell) ) {
+				if ( (!closed.has(adjCell) || (cell.g < adjCell.g - 20)) ) {
 					if ( !wallExistsBetweenCells(adjCell, cell) ) {
 						if ( opened.contains(adjCell) ) {
 							// if adj cell is in open list, check if current path is
@@ -301,13 +303,9 @@ class AStar {
 						if ( cell.g + 10 < energy ) {
 							// we mark cells that are behind walls to crush them later if needed
 
-							// if(adjCell.)
-							adjCell.g = cell.g + 10;
-							adjCell.h = Std.int(getHeuristic(adjCell));
-							adjCell.f = adjCell.h + adjCell.g;
-
-							adjCell.destroyedWalls = cell.destroyedWalls;
-							if ( adjCell.wallbreakingParent == null ) {
+							var potentialF = Std.int(getHeuristic(adjCell)) + cell.g + 10;
+							if ( adjCell.potentialF == 0 || adjCell.potentialF > potentialF ) {
+								adjCell.destroyedWalls = cell.destroyedWalls;
 								adjCell.wallbreakingParent = cell;
 								behindWalls.push(adjCell);
 							}

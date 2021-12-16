@@ -14,6 +14,7 @@ var _$AStar_Cell = function(x,y) {
 	this.g = 0;
 	this.h = 0;
 	this.f = 0;
+	this.potentialF = 0;
 	this.destroyedWalls = 0;
 };
 $hxClasses["_AStar.Cell"] = _$AStar_Cell;
@@ -24,17 +25,10 @@ _$AStar_Cell.prototype = {
 	,g: null
 	,h: null
 	,f: null
+	,potentialF: null
 	,parent: null
 	,destroyedWalls: null
 	,wallbreakingParent: null
-	,clone: function() {
-		var cell = new _$AStar_Cell(this.x,this.y);
-		cell.g = this.g;
-		cell.h = this.h;
-		cell.f = this.f;
-		cell.destroyedWalls = this.destroyedWalls;
-		return cell;
-	}
 	,__class__: _$AStar_Cell
 };
 var AStar = function(start,end,size,energy,sledgehammerUses,teleportCost,teleportRadius,edges,closed,behindWalls,doCompletePath) {
@@ -159,7 +153,7 @@ AStar.prototype = {
 		while(cell.parent != this.start) {
 			cell = cell.parent;
 			resultPath.push(cell);
-			haxe_Log.trace("displayign ",{ fileName : "Source/AStar.hx", lineNumber : 161, className : "AStar", methodName : "displayPath", customParams : [cell.x,cell.y]});
+			haxe_Log.trace("displayign ",{ fileName : "Source/AStar.hx", lineNumber : 163, className : "AStar", methodName : "displayPath", customParams : [cell.x,cell.y]});
 		}
 		resultPath.push(this.start);
 		return resultPath;
@@ -182,7 +176,7 @@ AStar.prototype = {
 		}
 	}
 	,findPath: function() {
-		haxe_Log.trace("zhopa",{ fileName : "Source/AStar.hx", lineNumber : 189, className : "AStar", methodName : "findPath"});
+		haxe_Log.trace("zhopa",{ fileName : "Source/AStar.hx", lineNumber : 191, className : "AStar", methodName : "findPath"});
 		this.opened.push(this.start);
 		while(this.opened.length > 0) {
 			var size = this.opened.length;
@@ -211,7 +205,7 @@ AStar.prototype = {
 							cellBehindWall = wall;
 							continue;
 						}
-						haxe_Log.trace(cellBehindWall.g - cellBehindWall.wallbreakingParent.g,{ fileName : "Source/AStar.hx", lineNumber : 244, className : "AStar", methodName : "findPath", customParams : [wall.g - wall.wallbreakingParent.g]});
+						haxe_Log.trace(cellBehindWall.g - cellBehindWall.wallbreakingParent.g,{ fileName : "Source/AStar.hx", lineNumber : 246, className : "AStar", methodName : "findPath", customParams : [wall.g - wall.wallbreakingParent.g]});
 						if(cellBehindWall.g - cellBehindWall.wallbreakingParent.g < wall.g - wall.wallbreakingParent.g) {
 							cellBehindWall = wall;
 						}
@@ -226,7 +220,7 @@ AStar.prototype = {
 					cell = cellBehindWall;
 					this.updateCell(cell,cell.wallbreakingParent);
 					if(cell.parent != null && cell.parent.parent != null && cell.parent.parent.parent == cell) {
-						haxe_Log.trace(cell.x,{ fileName : "Source/AStar.hx", lineNumber : 266, className : "AStar", methodName : "findPath", customParams : [cell.y,cell.parent == cell,"amogus"]});
+						haxe_Log.trace(cell.x,{ fileName : "Source/AStar.hx", lineNumber : 268, className : "AStar", methodName : "findPath", customParams : [cell.y,cell.parent == cell,"amogus"]});
 					}
 					Game.get_inst().heroPath.get_graphics().beginFill(3618615,0.8);
 					Game.get_inst().heroPath.get_graphics().drawRect(cell.x * Game.get_inst().maze.cellSize + 10,cell.y * Game.get_inst().maze.cellSize + 10,5,5);
@@ -250,12 +244,10 @@ AStar.prototype = {
 							this.opened.push(adjCell);
 						}
 						if(adjCell.parent != null && adjCell.parent.parent != null && adjCell.parent.parent.parent == adjCell) {
-							haxe_Log.trace(adjCell.x,{ fileName : "Source/AStar.hx", lineNumber : 297, className : "AStar", methodName : "findPath", customParams : [adjCell.y,cell.parent == cell]});
+							haxe_Log.trace(adjCell.x,{ fileName : "Source/AStar.hx", lineNumber : 299, className : "AStar", methodName : "findPath", customParams : [adjCell.y,cell.parent == cell]});
 						}
 					} else if(cell.g + 10 < this.energy) {
-						adjCell.g = cell.g + 10;
-						adjCell.h = 10 * (Math.abs(adjCell.x - this.end.x) + Math.abs(adjCell.y - this.end.y)) | 0;
-						adjCell.f = adjCell.h + adjCell.g;
+						adjCell.potentialF = (10 * (Math.abs(adjCell.x - this.end.x) + Math.abs(adjCell.y - this.end.y)) | 0) + cell.g + 10;
 						adjCell.destroyedWalls = cell.destroyedWalls;
 						if(adjCell.wallbreakingParent == null) {
 							adjCell.wallbreakingParent = cell;
@@ -265,7 +257,7 @@ AStar.prototype = {
 				}
 			}
 		}
-		haxe_Log.trace("No path was found",{ fileName : "Source/AStar.hx", lineNumber : 319, className : "AStar", methodName : "findPath"});
+		haxe_Log.trace("No path was found",{ fileName : "Source/AStar.hx", lineNumber : 320, className : "AStar", methodName : "findPath"});
 		return null;
 	}
 	,__class__: AStar
@@ -1174,7 +1166,7 @@ ApplicationMain.main = function() {
 ApplicationMain.create = function(config) {
 	var app = new openfl_display_Application();
 	ManifestResources.init(config);
-	app.meta.h["build"] = "1252";
+	app.meta.h["build"] = "1";
 	app.meta.h["company"] = "Company Name";
 	app.meta.h["file"] = "NextersTestOpenfl1";
 	app.meta.h["name"] = "NextersTestOpenfl1";
