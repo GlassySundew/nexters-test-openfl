@@ -1,0 +1,62 @@
+<vbox style="padding: 5px;spacing:10px">
+	<style>
+		.bordered {
+			border: 1px solid #cbdbfc;
+			padding: 5px;
+		}
+		.
+	</style>
+
+	<hbox>
+
+		<vbox styleNames="bordered" style="minWidth:300px;">
+			<label text="Status:" />
+			<vbox styleNames="bordered" percentWidth="100">
+				<grid width="100%" columns="2">
+					<label text="Energy: " />
+					<label text="placeme" id="energyDisplayLabel" textAlign="right" width="100%" horizontalAlign="right" />
+					<label text="Slegdehammer: " />
+					<label text="placeme" id="sledgehammerDisplayLabel" textAlign="right" width="100%" horizontalAlign="right" />
+					<label text="Portals: " />
+					<label text="placeme" id="portalsDisplayLabel" textAlign="right" width="100%" horizontalAlign="right" />
+				</grid>
+			</vbox>
+
+			<button text="End turn" verticalAlign="center" percentWidth="100" />
+			<button text="Clear map" id="mazeClear" verticalAlign="center" percentWidth="100" />
+
+			<grid columns="2">
+				<button text="Add energy: " verticalAlign="center" percentWidth="100" />
+				<textfield id="display" text="40" horizontalAlign="right" />
+
+				<button text="Add random walls: " verticalAlign="center" />
+				<textfield id="display" text="100" placeholder="''+40" />
+			</grid>
+
+			<label text="Config:" style="padding-top:10px;" />
+
+			<grid columns="2" width="100%">
+				<label text="M (maze size)" verticalAlign="center" width="100%" />
+				<textfield id="mConfig" text="40" horizontalAlign="right" width="100%" />
+
+				<label text="E (hero max energy)" verticalAlign="center" width="100%" />
+				<textfield id="eConfig" text="30" horizontalAlign="right" />
+
+				<label text="W (wall crush uses)" verticalAlign="center" width="100%" />
+				<textfield id="wConfig" text="5" horizontalAlign="right" />
+
+				<label text="R (teleport radius)" verticalAlign="center" width="100%" />
+				<textfield id="rConfig" text="10" horizontalAlign="right" />
+
+				<label text="T (teleport cost)" verticalAlign="center" width="100%" />
+				<textfield id="tConfig" text="10" horizontalAlign="right" />
+			</grid>
+
+			<box style="padding-top:5px;" />
+			<button text="Refresh maze with given parameters" id="refresher" width="100%" verticalAlign="center" />
+
+		</vbox>
+
+		<box id="mazeBoxContainer" style="position: absolute;" />
+	</hbox>
+</vbox>

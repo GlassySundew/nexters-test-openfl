@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<project>
+
+	<meta title="NextersTestOpenfl1" package="com.sample.nexterstestopenfl1" version="1.0.0" company="Company Name" />
+	<app main="Main" path="Export" file="NextersTestOpenfl1" />
+
+	<source path="Source" />
+
+	<haxelib name="openfl" />
+	<haxelib name="haxeui-core" />
+	<haxelib name="haxeui-openfl" />
+
+	<assets path="Assets" rename="assets" />
+
+</project>

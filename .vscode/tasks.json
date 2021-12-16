@@ -1,0 +1,20 @@
+{
+  "tasks": [
+    {
+      "type": "lime",
+      "group": {
+          "kind": "build",
+          "isDefault": true
+      },
+      "command": "build",
+      "targetConfiguration": "HTML5 / Debug",
+      "problemMatcher": [
+        "$haxe-absolute",
+        "$haxe",
+        "$haxe-error",
+        "$haxe-trace"
+      ],
+      "label": "lime: build html5 -debug"
+    }
+  ]
+}
