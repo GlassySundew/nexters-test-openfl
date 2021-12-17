@@ -1,17 +1,16 @@
 package;
 
-import openfl.display.Bitmap;
-import openfl.Assets;
-import haxe.ui.components.Label;
-import haxe.ui.events.MouseEvent;
-import haxe.ui.components.Button;
-import haxe.ui.core.ItemRenderer;
-import haxe.ui.containers.VBox;
+import openfl.events.KeyboardEvent;
+import openfl.ui.Keyboard;
 import haxe.ui.HaxeUIApp;
 import haxe.ui.Toolkit;
+import haxe.ui.components.Button;
+import haxe.ui.components.Label;
 import haxe.ui.components.TextArea;
-import haxe.ui.containers.ListView;
+import haxe.ui.containers.VBox;
 import haxe.ui.core.Component;
+import haxe.ui.core.ItemRenderer;
+import haxe.ui.events.MouseEvent;
 import haxe.ui.macros.ComponentMacros;
 import openfl.Lib;
 import openfl.display.Sprite;
@@ -46,12 +45,13 @@ class Main extends Sprite {
 
 			newGame(null);
 
-			uiManager.refresherButton.onClick = newGame;
+			uiManager.endTurnButton.onClick = Game.inst.endTurn;
 			uiManager.mazeClearButton.onClick = Game.inst.clearMap;
-
-			uiManager.setEnergyDisplay(Game.inst.stat.maxEnergy);
-			uiManager.setSledgehammerUsesDisplay(Game.inst.stat.maxSledgehammerUses);
-			uiManager.setPortalsUsesDisplay(1);
+			uiManager.addEnergyButton.onClick = ( e ) -> {
+				Game.inst.hero.energy += Std.parseInt(uiManager.addRandomWallsTextField.text);
+			};
+			uiManager.refresherButton.onClick = newGame;
+			uiManager.endTurnButton.onClick = Game.inst.endTurn;
 
 			app.addComponent(uiRoot);
 			app.start();
@@ -62,15 +62,23 @@ class Main extends Sprite {
 private class UiManager {
 	@:allow(Main)
 	private var mazeSpriteContainer : SpriteContainer;
-
 	@:allow(Main)
-	private var refresherButton : Button;
+	private var endTurnButton : Button;
 	@:allow(Main)
 	private var mazeClearButton : Button;
+	@:allow(Main)
+	private var addEnergyButton : Button;
+	@:allow(Main)
+	private var addRandomWallsButton : Button;
+	@:allow(Main)
+	private var refresherButton : Button;
+
 	private var uiRoot : Component;
 	private var energyDisplayLabel : Label;
 	private var sledgehammerDisplayLabel : Label;
 	private var portalsDisplayLabel : Label;
+	@:allow(Main)
+	private var addRandomWallsTextField : Label;
 	private var mConfig : TextArea;
 	private var eConfig : TextArea;
 	private var wConfig : TextArea;
@@ -86,8 +94,14 @@ private class UiManager {
 		var mazeBoxContainer : ItemRenderer = uiRoot.findComponent("mazeBoxContainer");
 		mazeBoxContainer.addChild(mazeSpriteContainer);
 
+		endTurnButton = uiRoot.findComponent("endTurnButton");
+		mazeClearButton = uiRoot.findComponent("mazeClearButton");
+		addEnergyButton = uiRoot.findComponent("addEnergyButton");
+		addRandomWallsButton = uiRoot.findComponent("addRandomWallsButton");
 		refresherButton = uiRoot.findComponent("refresher");
-		mazeClearButton = uiRoot.findComponent("mazeClear");
+
+		addRandomWallsTextField = uiRoot.findComponent("addRandomWallsTextField");
+
 		mConfig = uiRoot.findComponent("mConfig");
 		eConfig = uiRoot.findComponent("eConfig");
 		wConfig = uiRoot.findComponent("wConfig");

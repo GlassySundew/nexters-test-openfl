@@ -2,7 +2,7 @@ package tools;
 
 import tools.KruskalMazeGen;
 /**
- * Stores a pair of integers
+ * Stores a pair of integers, where each one is a mapped coorinate of a cell in 2d array of cells
  */
 class IntPair {
 	public final val1 : Int;

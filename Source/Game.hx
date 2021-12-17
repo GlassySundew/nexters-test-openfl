@@ -1,9 +1,18 @@
+import openfl.ui.Keyboard;
+import openfl.events.KeyboardEvent;
+import openfl.display.Graphics;
 import openfl.geom.Point;
 import openfl.display.Bitmap;
 import openfl.utils.Assets;
 import openfl.display.Sprite;
 
 using tools.ReverseArrayKeyValueIterator;
+
+enum ControlStatus {
+	Pathfinder;
+	HeroTransfer;
+	WallEdit;
+}
 
 class Game {
 	private static var _inst : Game;
@@ -13,16 +22,19 @@ class Game {
 	static function get_inst() : Game {
 		return _inst;
 	}
-	
+
 	static function set_inst( inst : Game ) : Game {
 		if ( _inst != null ) _inst.dispose();
 		return _inst = inst;
 	}
+
 	public var maze : Maze;
 
-	private var hero : Hero;
+	public var hero : Hero;
 
 	public var stat : GameState;
+
+	public var controlStatus : ControlStatus;
 
 	private var heroPath : Sprite;
 
@@ -32,6 +44,7 @@ class Game {
 		inst = this;
 		parentRoot = parent;
 		this.stat = stat;
+		controlStatus = Pathfinder;
 
 		heroPath = new Sprite();
 
@@ -39,6 +52,7 @@ class Game {
 		maze.x += 5;
 		maze.generate();
 		maze.addChild(heroPath);
+		heroPath.mouseEnabled = false;
 
 		hero = new Hero(0, 0);
 		hero.scaleX = maze.cellSize / hero.width;
@@ -50,43 +64,94 @@ class Game {
 		maze.addChild(hero);
 
 		parent.sprite = maze;
+
+		Main.inst.stage.addEventListener(KeyboardEvent.KEY_DOWN, keyDown);
+		Main.inst.stage.addEventListener(KeyboardEvent.KEY_UP, keyUp);
+	}
+
+	private function keyDown( e : KeyboardEvent ) {
+		switch e.keyCode {
+			case Keyboard.SHIFT:
+				controlStatus = HeroTransfer;
+			case Keyboard.CONTROL:
+				trace("zhopa");
+
+				controlStatus = WallEdit;
+			default:
+		}
+	}
+
+	private function keyUp( e : KeyboardEvent ) {
+		switch e.keyCode {
+			case Keyboard.SHIFT | Keyboard.CONTROL:
+				controlStatus = Pathfinder;
+			default:
+		}
 	}
 	/** calculates and draws path from hero position to point in maze **/
-	public function getPathPreviewFromHero( to : Point ) {
+	public function getPathPreviewFromHero( toX : Int, toY : Int ) {
 		heroPath.graphics.clear();
 
-		var path = new AStar(
-			{ x : hero.cell.x, y : hero.cell.y },
-			{ x : Std.int(to.x), y : Std.int(to.y) },
+		var astar = new AStar(
+			{ x : hero.cellX, y : hero.cellY },
+			{ x : toX, y : toY },
 			stat.mazeSize,
 			hero.energy,
 			hero.sledgehammerUses,
 			stat.teleportCost,
 			stat.teleportRadius,
 			maze.edges
-		).findPath();
+		);
 
-		var availableEnergy = hero.energy + 1;
-		heroPath.graphics.lineStyle(4, 0x000000, 0.5);
+		var path = astar.findPath();
 
 		if ( path != null ) {
-			for ( i => cell in path.reversedKeyValues() ) {
-				if ( availableEnergy < 1 )
-					heroPath.graphics.lineStyle(4, 0x9b0000, 0.5);
+			var availableEnergy = hero.energy;
+			path.reverse();
+
+			for ( i => cell in path ) {
+				if ( i + 1 == path.length )
+					continue;
 				availableEnergy--;
-				try {
-					heroPath.graphics.moveTo(cell.x * maze.cellSize + maze.cellSize / 2, cell.y * maze.cellSize + maze.cellSize / 2);
-					heroPath.graphics.lineTo(path[i + 1].x * maze.cellSize + maze.cellSize / 2, path[i + 1].y * maze.cellSize + maze.cellSize / 2);
-				} catch( e ) {}
-				// heroPath.graphics.drawRect(path[i + 1].x * maze.cellSize, path[i + 1].y * maze.cellSize, maze.cellSize, maze.cellSize);
+
+				if ( astar.wallExistsBetweenCells(cell, path[i + 1]) ) {
+					drawCross(
+						(cell.x + Math.abs((path[i + 1].y - cell.y) / 2) + Math.max((path[i + 1].x - cell.x), 0)) * maze.cellSize,
+						(cell.y + Math.abs((path[i + 1].x - cell.x) / 2) + Math.max((path[i + 1].y - cell.y), 0)) * maze.cellSize,
+						heroPath.graphics);
+				}
+
+				if ( availableEnergy < 0 ) {
+					heroPath.graphics.lineStyle(4, 0x9b0000, 0.5);
+				} else
+					heroPath.graphics.lineStyle(4, 0x000000, 0.5);
+
+				heroPath.graphics.moveTo(cell.x * maze.cellSize + maze.cellSize / 2, cell.y * maze.cellSize + maze.cellSize / 2);
+				heroPath.graphics.lineTo(path[i + 1].x * maze.cellSize + maze.cellSize / 2, path[i + 1].y * maze.cellSize + maze.cellSize / 2);
 			}
+			hero.pathCache = path;
+
+			maze.displayTooltip(
+				(path[path.length - 1].x + 2) * maze.cellSize,
+				path[path.length - 1].y * maze.cellSize,
+				'cost: ${path.length - 1}');
 		}
 
 		heroPath.graphics.endFill();
 	}
 
+	private function drawCross( x : Float, y : Float, graphics : Graphics ) {
+		graphics.lineStyle(4, 0x69077e, 0.7);
+		graphics.moveTo(x - 5, y - 5);
+		graphics.lineTo(x + 5, y + 5);
+
+		graphics.moveTo(x - 5, y + 5);
+		graphics.lineTo(x + 5, y - 5);
+	}
+
 	public function removeHeroPath() {
-		// heroPath.graphics.clear();
+		heroPath.graphics.clear();
+		maze.hideToolTip();
 	}
 
 	public function endTurn( _ ) {
@@ -96,7 +161,7 @@ class Game {
 	}
 
 	public function clearMap( _ ) {
-		maze.edges.resize(0);
+		untyped maze.edges.length = 0;
 		maze.drawAll();
 	}
 
@@ -105,6 +170,8 @@ class Game {
 		maze.graphics.clear();
 		if ( heroPath != null ) heroPath.graphics.clear();
 		maze = null;
-		// hero = null;
+
+		Main.inst.removeEventListener(KeyboardEvent.KEY_DOWN, keyDown);
+		Main.inst.removeEventListener(KeyboardEvent.KEY_UP, keyUp);
 	}
 }

@@ -1,3 +1,5 @@
+import tools.IntPair;
+import openfl.text.TextField;
 import openfl.geom.ColorTransform;
 import openfl.events.MouseEvent;
 import js.html.Event;
@@ -8,38 +10,59 @@ import openfl.display.Tilemap;
 import tools.KruskalMazeGen;
 
 private class InteractiveCell extends Sprite {
-	public var coord : Point;
+	public var cellX : Int;
+	public var cellY : Int;
 
 	public function new( cellX : Int, cellY : Int, size : Int ) {
 		super();
 		x = cellX * size;
 		y = cellY * size;
 
-		coord = new Point(cellX, cellY);
+		this.cellX = cellX;
+		this.cellY = cellY;
 
 		graphics.beginFill(0x000000, 0);
 		graphics.drawRect(0 - 1, 0 - 1, size + 1, size + 1);
 		graphics.endFill();
 
-		this.addEventListener(MouseEvent.MOUSE_OVER, ( e ) -> {
-			Game.inst.getPathPreviewFromHero(coord);
-		});
-
-		this.addEventListener(MouseEvent.MOUSE_OUT, ( e ) -> {
-			Game.inst.removeHeroPath();
-		});
+		this.addEventListener(MouseEvent.MOUSE_OVER, cellOnOver);
+		this.addEventListener(MouseEvent.MOUSE_OUT, cellOnOut);
+		this.addEventListener(MouseEvent.CLICK, cellOnClick);
 	}
 
-	function drawPath() {}
+	private function cellOnOver( _ ) {
+		switch Game.inst.controlStatus {
+			case Pathfinder:
+				Game.inst.getPathPreviewFromHero(cellX, cellY);
+			default:
+		}
+	}
 
-	function removePath() {}
+	private function cellOnOut( _ ) {
+		Game.inst.removeHeroPath();
+	}
+
+	private function cellOnClick( _ ) {
+
+		switch Game.inst.controlStatus {
+			case HeroTransfer:
+				Game.inst.hero.setCellPosition(cellX, cellY);
+			case WallEdit:
+				Game.inst.maze.toggleWallsInCell(cellX, cellY);
+			case Pathfinder:
+				Game.inst.hero.moveByPath();
+			default:
+		}
+	}
 }
 
 class Maze extends Sprite {
 	public var edges(get, never) : Array<tools.IntPair>;
+
 	function get_edges() {
 		return kruskal.edges;
 	}
+
 	public final cellSize = 20;
 
 	private var wallsSprite : Sprite;
@@ -52,6 +75,7 @@ class Maze extends Sprite {
 	private var backgroundColor = 0x999999;
 	private var cellGridColor = 0x707070;
 	private var wallColor = 0xececec;
+	private var toolTip : Sprite;
 
 	public function new( m : Int ) {
 		super();
@@ -77,7 +101,6 @@ class Maze extends Sprite {
 	public function drawAll() {
 
 		graphics.clear();
-		kruskal.graphics.clear();
 
 		// one piece ground background
 		graphics.beginFill(backgroundColor);
@@ -95,6 +118,61 @@ class Maze extends Sprite {
 
 		// drawing walls
 		redrawWalls();
+	}
+
+	public function displayTooltip( x : Int, y : Int, string : String ) {
+		if ( toolTip == null ) {
+			toolTip = new Sprite();
+			addChild(toolTip);
+		}
+		var text = new TextField();
+		text.text = string;
+		text.textColor = 0xffffff;
+		text.invalidate();
+
+		toolTip.visible = true;
+		toolTip.x = x;
+		toolTip.y = y;
+		toolTip.removeChildren();
+		toolTip.graphics.clear();
+		toolTip.graphics.beginFill(0x000000, 0.55);
+		toolTip.graphics.drawRoundRect(-5, 0, text.textWidth + 15, text.textHeight + 10, 6, 6);
+		toolTip.addChild(text);
+		toolTip.mouseEnabled = false;
+		text.mouseEnabled = false;
+		toolTip.scaleX = toolTip.scaleY = 1.2;
+	}
+
+	public function hideToolTip() {
+		if ( toolTip != null )
+			toolTip.visible = false;
+	}
+	/** 
+		if any cell present, will remove everything, if no cells present, will place 4 walls around
+	**/
+	public function toggleWallsInCell( x : Int, y : Int ) {
+		var walls = [];
+
+		for ( edge in edges ) {
+			var c1 = IntPair.unmapCell(edge.val1, size);
+			var c2 = IntPair.unmapCell(edge.val2, size);
+			if ( (x == c1.val1 && y == c1.val2) || (x == c2.val1 && y == c2.val2) ) {
+				walls.push(edge);
+			}
+		}
+
+		if ( walls.length > 0 ) {
+			// значит убираем стены
+			for ( wall in walls ) edges.remove(wall);
+		} else {
+			// значит ставим 4 стены
+			if ( x < size - 1 ) edges.push(new IntPair(IntPair.mapCell(x, y, size), IntPair.mapCell(x + 1, y, size)));
+			if ( x > 0 ) edges.push(new IntPair(IntPair.mapCell(x, y, size), IntPair.mapCell(x - 1, y, size)));
+			if ( y < size - 1 ) edges.push(new IntPair(IntPair.mapCell(x, y, size), IntPair.mapCell(x, y + 1, size)));
+			if ( y > 0 ) edges.push(new IntPair(IntPair.mapCell(x, y, size), IntPair.mapCell(x, y - 1, size)));
+		}
+
+		drawAll();	
 	}
 
 	private function redrawWalls() {

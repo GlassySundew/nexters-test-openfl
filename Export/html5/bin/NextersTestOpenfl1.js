@@ -8,7 +8,7 @@ function $extend(from, fields) {
 	if( fields.toString !== Object.prototype.toString ) proto.toString = fields.toString;
 	return proto;
 }
-var _$AStar_Cell = function(x,y) {
+var Cell = function(x,y) {
 	this.x = x;
 	this.y = y;
 	this.g = 0;
@@ -18,9 +18,9 @@ var _$AStar_Cell = function(x,y) {
 	this.potentialG = 0;
 	this.wallsDestroyed = 0;
 };
-$hxClasses["_AStar.Cell"] = _$AStar_Cell;
-_$AStar_Cell.__name__ = "_AStar.Cell";
-_$AStar_Cell.prototype = {
+$hxClasses["Cell"] = Cell;
+Cell.__name__ = "Cell";
+Cell.prototype = {
 	x: null
 	,y: null
 	,g: null
@@ -31,13 +31,9 @@ _$AStar_Cell.prototype = {
 	,parent: null
 	,wallsDestroyed: null
 	,wallbreakingParent: null
-	,__class__: _$AStar_Cell
+	,__class__: Cell
 };
-var AStar = function(start,end,size,energy,sledgehammerUses,teleportCost,teleportRadius,edges,closed,behindWalls,doCompletePath) {
-	if(doCompletePath == null) {
-		doCompletePath = true;
-	}
-	this.doCompletePath = doCompletePath;
+var AStar = function(start,end,size,energy,sledgehammerUses,teleportCost,teleportRadius,edges,closed,behindWalls) {
 	this.energy = energy * 10;
 	this.sledgehammerUses = sledgehammerUses;
 	this.teleportCost = teleportCost;
@@ -57,7 +53,7 @@ var AStar = function(start,end,size,energy,sledgehammerUses,teleportCost,telepor
 		var _g5 = size;
 		while(_g4 < _g5) {
 			var x = _g4++;
-			_g3.push(new _$AStar_Cell(x,y));
+			_g3.push(new Cell(x,y));
 		}
 		_g.push(_g3);
 	}
@@ -81,7 +77,6 @@ AStar.prototype = {
 	,teleportCost: null
 	,teleportRadius: null
 	,teleportUses: null
-	,doCompletePath: null
 	,getAdjacentCells: function(cell) {
 		var result = [];
 		if(cell.y > 0) {
@@ -110,19 +105,16 @@ AStar.prototype = {
 			_g_lastStep = _g_jsIterator.next();
 			var edge = v;
 			var c = edge.val1;
-			var c1_x = c % this.size;
-			var c1_y = Math.floor(c / this.size);
-			var c1 = edge.val2;
-			var c2_x = c1 % this.size;
-			var c2_y = Math.floor(c1 / this.size);
-			if(c1_x == cell1.x && c1_y == cell1.y && c2_x == cell2.x && c2_y == cell2.y || c2_x == cell1.x && c2_y == cell1.y && c1_x == cell2.x && c1_y == cell2.y) {
+			var size = this.size;
+			var c1 = new tools_IntPair(c % size,Math.floor(c / size));
+			var c2 = edge.val2;
+			var size1 = this.size;
+			var c21 = new tools_IntPair(c2 % size1,Math.floor(c2 / size1));
+			if(c1.val1 == cell1.x && c1.val2 == cell1.y && c21.val1 == cell2.x && c21.val2 == cell2.y || c21.val1 == cell1.x && c21.val2 == cell1.y && c1.val1 == cell2.x && c1.val2 == cell2.y) {
 				return true;
 			}
 		}
 		return false;
-	}
-	,unmapCell: function(c) {
-		return { x : c % this.size, y : Math.floor(c / this.size)};
 	}
 	,getHeuristic: function(cell) {
 		return 10 * (Math.abs(cell.x - this.end.x) + Math.abs(cell.y - this.end.y));
@@ -134,23 +126,11 @@ AStar.prototype = {
 		adjCell.f = adjCell.h + adjCell.g;
 		adjCell.wallsDestroyed = cell.wallsDestroyed;
 	}
-	,isAnyAbilityLeft: function() {
-		if(!(this.teleportUses > 0 || this.sledgehammerUses > 0)) {
-			return this.energy > 0;
-		} else {
-			return true;
-		}
-	}
 	,displayPath: function() {
 		var resultPath = [this.end];
 		var cell = this.end;
-		var _g = 0;
-		var _g1 = this.behindWalls;
-		while(_g < _g1.length) {
-			var i = _g1[_g];
-			++_g;
-			Game.get_inst().heroPath.get_graphics().beginFill(2500279,0.3);
-			Game.get_inst().heroPath.get_graphics().drawRect(i.x * Game.get_inst().maze.cellSize + 5,i.y * Game.get_inst().maze.cellSize + 5,10,10);
+		if(cell.parent == null) {
+			return null;
 		}
 		while(cell.parent != this.start) {
 			cell = cell.parent;
@@ -189,26 +169,33 @@ AStar.prototype = {
 	,findPath: function() {
 		this.opened.push(this.start);
 		while(this.opened.length > 0) {
-			var size = this.opened.length;
-			var start = 0;
-			while(start < size) {
-				this.heapify(this.opened,size,start);
-				++start;
+			var cell = null;
+			var _g = 0;
+			var _g1 = this.opened;
+			while(_g < _g1.length) {
+				var i = _g1[_g];
+				++_g;
+				if(cell == null) {
+					cell = i;
+					continue;
+				}
+				if(cell.f > i.f) {
+					cell = i;
+				}
 			}
-			var cell = this.opened.pop();
+			HxOverrides.remove(this.opened,cell);
 			this.closed.add(cell);
 			if(cell == this.end) {
-				haxe_Log.trace(this.end.wallsDestroyed,{ fileName : "Source/AStar.hx", lineNumber : 226, className : "AStar", methodName : "findPath"});
 				return this.displayPath();
 			}
-			while(cell.g >= this.energy && this.behindWalls.length > 0 && cell.wallsDestroyed < this.sledgehammerUses) {
+			while((cell.g >= this.energy + 10 || this.opened.length == 0) && this.behindWalls.length > 0 && cell.wallsDestroyed < this.sledgehammerUses) {
 				var cellBehindWall = null;
 				while(this.behindWalls.length > 0 && (cellBehindWall == null || cellBehindWall.g >= this.energy)) {
-					var _g = 0;
-					var _g1 = this.behindWalls;
-					while(_g < _g1.length) {
-						var wall = _g1[_g];
-						++_g;
+					var _g2 = 0;
+					var _g3 = this.behindWalls;
+					while(_g2 < _g3.length) {
+						var wall = _g3[_g2];
+						++_g2;
 						if(cellBehindWall == null) {
 							cellBehindWall = wall;
 							continue;
@@ -226,17 +213,11 @@ AStar.prototype = {
 					}
 				}
 				if(cellBehindWall != null && cellBehindWall.wallbreakingParent.wallsDestroyed < this.sledgehammerUses && cellBehindWall.wallsDestroyed < this.sledgehammerUses) {
-					haxe_Log.trace("breaking wall in ",{ fileName : "Source/AStar.hx", lineNumber : 288, className : "AStar", methodName : "findPath", customParams : [cellBehindWall.x,cellBehindWall.y,cellBehindWall.wallsDestroyed,cellBehindWall.wallbreakingParent.wallsDestroyed]});
 					this.opened.push(cell);
 					this.closed.delete(cell);
 					cell = cellBehindWall;
 					this.updateCell(cell,cell.wallbreakingParent);
 					cell.wallsDestroyed++;
-					if(cell.parent != null && cell.parent.parent != null && cell.parent.parent.parent == cell) {
-						haxe_Log.trace(cell.x,{ fileName : "Source/AStar.hx", lineNumber : 305, className : "AStar", methodName : "findPath", customParams : [cell.y,cell.parent == cell,"amogus"]});
-					}
-					Game.get_inst().heroPath.get_graphics().beginFill(3618615,0.8);
-					Game.get_inst().heroPath.get_graphics().drawRect(cell.x * Game.get_inst().maze.cellSize + 10,cell.y * Game.get_inst().maze.cellSize + 10,5,5);
 					var parent = cell.parent;
 					while(parent != null) {
 						parent.wallsDestroyed = cell.wallsDestroyed;
@@ -248,23 +229,17 @@ AStar.prototype = {
 				return this.displayPath();
 			}
 			var adjCells = this.getAdjacentCells(cell);
-			var _g2 = 0;
-			while(_g2 < adjCells.length) {
-				var adjCell = adjCells[_g2];
-				++_g2;
-				if((!this.closed.has(adjCell) || cell.f < adjCell.f - 20) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
+			var _g4 = 0;
+			while(_g4 < adjCells.length) {
+				var adjCell = adjCells[_g4];
+				++_g4;
+				if((!this.closed.has(adjCell) || cell.g < adjCell.g - 30) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
 					if(!this.wallExistsBetweenCells(adjCell,cell)) {
-						if(this.opened.indexOf(adjCell) != -1) {
-							this.updateCell(adjCell,cell);
-						} else {
-							this.updateCell(adjCell,cell);
+						if(this.opened.indexOf(adjCell) == -1) {
 							this.opened.push(adjCell);
-						}
-						if(adjCell.parent != null && adjCell.parent.parent == adjCell) {
-							haxe_Log.trace(adjCell.x,{ fileName : "Source/AStar.hx", lineNumber : 341, className : "AStar", methodName : "findPath", customParams : [adjCell.y,cell.parent == cell]});
-						}
-						if(adjCell.parent != null && adjCell.parent.parent != null && adjCell.parent.parent.parent == adjCell) {
-							haxe_Log.trace(adjCell.x,{ fileName : "Source/AStar.hx", lineNumber : 345, className : "AStar", methodName : "findPath", customParams : [adjCell.y,cell.parent == cell]});
+							this.updateCell(adjCell,cell);
+						} else if(adjCell.g > cell.g + 10) {
+							this.updateCell(adjCell,cell);
 						}
 					} else if(cell.g + 10 < this.energy) {
 						var potentialF = (10 * (Math.abs(adjCell.x - this.end.x) + Math.abs(adjCell.y - this.end.y)) | 0) + cell.g + 10;
@@ -279,7 +254,6 @@ AStar.prototype = {
 				}
 			}
 		}
-		haxe_Log.trace("No path was found",{ fileName : "Source/AStar.hx", lineNumber : 382, className : "AStar", methodName : "findPath"});
 		return null;
 	}
 	,__class__: AStar
@@ -1188,7 +1162,7 @@ ApplicationMain.main = function() {
 ApplicationMain.create = function(config) {
 	var app = new openfl_display_Application();
 	ManifestResources.init(config);
-	app.meta.h["build"] = "3";
+	app.meta.h["build"] = "4";
 	app.meta.h["company"] = "Company Name";
 	app.meta.h["file"] = "NextersTestOpenfl1";
 	app.meta.h["name"] = "NextersTestOpenfl1";
@@ -3997,12 +3971,13 @@ var Main = function() {
 		c3.addComponent(c4);
 		c1.addComponent(c3);
 		var c11 = new haxe_ui_components_Button();
+		c11.set_id("endTurnButton");
 		c11.set_text("End turn");
 		c11.set_verticalAlign("center");
 		c11.set_percentWidth(100);
 		c1.addComponent(c11);
 		var c12 = new haxe_ui_components_Button();
-		c12.set_id("mazeClear");
+		c12.set_id("mazeClearButton");
 		c12.set_text("Clear map");
 		c12.set_verticalAlign("center");
 		c12.set_percentWidth(100);
@@ -4010,16 +3985,18 @@ var Main = function() {
 		var c13 = new haxe_ui_containers_Grid();
 		c13.set_columns(2);
 		var c14 = new haxe_ui_components_Button();
+		c14.set_id("addEnergyButton");
 		c14.set_text("Add energy: ");
 		c14.set_verticalAlign("center");
 		c14.set_percentWidth(100);
 		c13.addComponent(c14);
 		var c15 = new haxe_ui_components_TextField();
-		c15.set_id("display");
+		c15.set_id("addRandomWallsTextField");
 		c15.set_text("40");
 		c15.set_horizontalAlign("right");
 		c13.addComponent(c15);
 		var c16 = new haxe_ui_components_Button();
+		c16.set_id("addRandomWallsButton");
 		c16.set_text("Add random walls: ");
 		c16.set_verticalAlign("center");
 		c13.addComponent(c16);
@@ -4111,11 +4088,14 @@ var Main = function() {
 			new Game(_gthis.uiManager.getGameConfig(),_gthis.uiManager.mazeSpriteContainer);
 		};
 		newGame(null);
-		_gthis.uiManager.refresherButton.set_onClick(newGame);
+		_gthis.uiManager.endTurnButton.set_onClick(($_=Game.get_inst(),$bind($_,$_.endTurn)));
 		_gthis.uiManager.mazeClearButton.set_onClick(($_=Game.get_inst(),$bind($_,$_.clearMap)));
-		_gthis.uiManager.setEnergyDisplay(Game.get_inst().stat.maxEnergy);
-		_gthis.uiManager.setSledgehammerUsesDisplay(Game.get_inst().stat.maxSledgehammerUses);
-		_gthis.uiManager.setPortalsUsesDisplay(1);
+		_gthis.uiManager.addEnergyButton.set_onClick(function(e) {
+			var fh = Game.get_inst().hero;
+			fh.set_energy(fh.energy + Std.parseInt(_gthis.uiManager.addRandomWallsTextField.get_text()));
+		});
+		_gthis.uiManager.refresherButton.set_onClick(newGame);
+		_gthis.uiManager.endTurnButton.set_onClick(($_=Game.get_inst(),$bind($_,$_.endTurn)));
 		app.addComponent(uiRoot);
 		app.start();
 	});
@@ -4228,16 +4208,24 @@ EReg.prototype = {
 	}
 	,__class__: EReg
 };
+var ControlStatus = $hxEnums["ControlStatus"] = { __ename__:"ControlStatus",__constructs__:null
+	,Pathfinder: {_hx_name:"Pathfinder",_hx_index:0,__enum__:"ControlStatus",toString:$estr}
+	,HeroTransfer: {_hx_name:"HeroTransfer",_hx_index:1,__enum__:"ControlStatus",toString:$estr}
+	,WallEdit: {_hx_name:"WallEdit",_hx_index:2,__enum__:"ControlStatus",toString:$estr}
+};
+ControlStatus.__constructs__ = [ControlStatus.Pathfinder,ControlStatus.HeroTransfer,ControlStatus.WallEdit];
 var Game = function(stat,parent) {
 	Game.set_inst(this);
 	this.parentRoot = parent;
 	this.stat = stat;
+	this.controlStatus = ControlStatus.Pathfinder;
 	this.heroPath = new openfl_display_Sprite();
 	this.maze = new Maze(stat.mazeSize);
 	var fh = this.maze;
 	fh.set_x(fh.get_x() + 5);
 	this.maze.generate();
 	this.maze.addChild(this.heroPath);
+	this.heroPath.mouseEnabled = false;
 	this.hero = new Hero(0,0);
 	this.hero.set_scaleX(this.maze.cellSize / this.hero.get_width());
 	this.hero.set_scaleY(this.maze.cellSize / this.hero.get_height());
@@ -4246,6 +4234,8 @@ var Game = function(stat,parent) {
 	this.hero.set_sledgehammerUses(stat.maxSledgehammerUses);
 	this.maze.addChild(this.hero);
 	parent.set_sprite(this.maze);
+	Main.inst.stage.addEventListener("keyDown",$bind(this,this.keyDown));
+	Main.inst.stage.addEventListener("keyUp",$bind(this,this.keyUp));
 };
 $hxClasses["Game"] = Game;
 Game.__name__ = "Game";
@@ -4263,35 +4253,80 @@ Game.prototype = {
 	maze: null
 	,hero: null
 	,stat: null
+	,controlStatus: null
 	,heroPath: null
 	,parentRoot: null
-	,getPathPreviewFromHero: function(to) {
+	,keyDown: function(e) {
+		switch(e.keyCode) {
+		case 16:
+			this.controlStatus = ControlStatus.HeroTransfer;
+			break;
+		case 17:
+			haxe_Log.trace("zhopa",{ fileName : "Source/Game.hx", lineNumber : 77, className : "Game", methodName : "keyDown"});
+			this.controlStatus = ControlStatus.WallEdit;
+			break;
+		default:
+		}
+	}
+	,keyUp: function(e) {
+		switch(e.keyCode) {
+		case 16:case 17:
+			this.controlStatus = ControlStatus.Pathfinder;
+			break;
+		default:
+		}
+	}
+	,getPathPreviewFromHero: function(toX,toY) {
 		this.heroPath.get_graphics().clear();
-		var path = new AStar({ x : this.hero.cell.x, y : this.hero.cell.y},{ x : to.x | 0, y : to.y | 0},this.stat.mazeSize,this.hero.energy,this.hero.sledgehammerUses,this.stat.teleportCost,this.stat.teleportRadius,this.maze.get_edges()).findPath();
-		var availableEnergy = this.hero.energy + 1;
-		this.heroPath.get_graphics().lineStyle(4,0,0.5);
+		var astar = { x : this.hero.cellX, y : this.hero.cellY};
+		var astar1 = this.stat.mazeSize;
+		var astar2 = this.hero.energy;
+		var astar3 = this.hero.sledgehammerUses;
+		var astar4 = this.stat.teleportCost;
+		var astar5 = this.stat.teleportRadius;
+		var astar6 = this.maze.get_edges();
+		var astar7 = new AStar(astar,{ x : toX, y : toY},astar1,astar2,astar3,astar4,astar5,astar6);
+		var path = astar7.findPath();
 		if(path != null) {
-			var _g_arr = path;
-			var _g_i = _g_arr.length - 1;
-			while(_g_i > -1) {
-				var _g1_value = _g_arr[_g_i];
-				var _g1_key = _g_i--;
+			var availableEnergy = this.hero.energy;
+			path.reverse();
+			var _g_current = 0;
+			var _g_array = path;
+			while(_g_current < _g_array.length) {
+				var _g1_value = _g_array[_g_current];
+				var _g1_key = _g_current++;
 				var i = _g1_key;
 				var cell = _g1_value;
-				if(availableEnergy < 1) {
-					this.heroPath.get_graphics().lineStyle(4,10158080,0.5);
+				if(i + 1 == path.length) {
+					continue;
 				}
 				--availableEnergy;
-				try {
-					this.heroPath.get_graphics().moveTo(cell.x * this.maze.cellSize + this.maze.cellSize / 2,cell.y * this.maze.cellSize + this.maze.cellSize / 2);
-					this.heroPath.get_graphics().lineTo(path[i + 1].x * this.maze.cellSize + this.maze.cellSize / 2,path[i + 1].y * this.maze.cellSize + this.maze.cellSize / 2);
-				} catch( _g ) {
+				if(astar7.wallExistsBetweenCells(cell,path[i + 1])) {
+					this.drawCross((cell.x + Math.abs((path[i + 1].y - cell.y) / 2) + Math.max(path[i + 1].x - cell.x,0)) * this.maze.cellSize,(cell.y + Math.abs((path[i + 1].x - cell.x) / 2) + Math.max(path[i + 1].y - cell.y,0)) * this.maze.cellSize,this.heroPath.get_graphics());
 				}
+				if(availableEnergy < 0) {
+					this.heroPath.get_graphics().lineStyle(4,10158080,0.5);
+				} else {
+					this.heroPath.get_graphics().lineStyle(4,0,0.5);
+				}
+				this.heroPath.get_graphics().moveTo(cell.x * this.maze.cellSize + this.maze.cellSize / 2,cell.y * this.maze.cellSize + this.maze.cellSize / 2);
+				this.heroPath.get_graphics().lineTo(path[i + 1].x * this.maze.cellSize + this.maze.cellSize / 2,path[i + 1].y * this.maze.cellSize + this.maze.cellSize / 2);
 			}
+			this.hero.pathCache = path;
+			this.maze.displayTooltip((path[path.length - 1].x + 2) * this.maze.cellSize,path[path.length - 1].y * this.maze.cellSize,"cost: " + (path.length - 1));
 		}
 		this.heroPath.get_graphics().endFill();
 	}
+	,drawCross: function(x,y,graphics) {
+		graphics.lineStyle(4,6883198,0.7);
+		graphics.moveTo(x - 5,y - 5);
+		graphics.lineTo(x + 5,y + 5);
+		graphics.moveTo(x - 5,y + 5);
+		graphics.lineTo(x + 5,y - 5);
+	}
 	,removeHeroPath: function() {
+		this.heroPath.get_graphics().clear();
+		this.maze.hideToolTip();
 	}
 	,endTurn: function(_) {
 		this.hero.set_energy(this.stat.maxEnergy);
@@ -4309,6 +4344,8 @@ Game.prototype = {
 			this.heroPath.get_graphics().clear();
 		}
 		this.maze = null;
+		Main.inst.removeEventListener("keyDown",$bind(this,this.keyDown));
+		Main.inst.removeEventListener("keyUp",$bind(this,this.keyUp));
 	}
 	,__class__: Game
 };
@@ -4334,13 +4371,23 @@ var Hero = function(cellX,cellY) {
 	var bitmapData = openfl_utils_Assets.getBitmapData("assets/doomguy.png");
 	var bitmap = new openfl_display_Bitmap(bitmapData);
 	this.addChild(bitmap);
-	this.cell = { x : cellX, y : cellY};
+	this.set_cellX(cellX);
+	this.set_cellY(cellY);
 };
 $hxClasses["Hero"] = Hero;
 Hero.__name__ = "Hero";
 Hero.__super__ = openfl_display_Sprite;
 Hero.prototype = $extend(openfl_display_Sprite.prototype,{
-	cell: null
+	cellX: null
+	,set_cellX: function(cellX) {
+		this.set_x(cellX * Game.get_inst().maze.cellSize);
+		return this.cellX = cellX;
+	}
+	,cellY: null
+	,set_cellY: function(cellY) {
+		this.set_y(cellY * Game.get_inst().maze.cellSize);
+		return this.cellY = cellY;
+	}
 	,energy: null
 	,set_energy: function(v) {
 		Main.inst.uiManager.setEnergyDisplay(v);
@@ -4356,8 +4403,55 @@ Hero.prototype = $extend(openfl_display_Sprite.prototype,{
 		Main.inst.uiManager.setPortalsUsesDisplay(e);
 		return this.portals = e;
 	}
+	,pathCache: null
+	,setCellPosition: function(cellX,cellY) {
+		this.set_cellX(cellX);
+		this.set_cellY(cellY);
+	}
+	,moveByPath: function() {
+		if(this.pathCache != null) {
+			this.set_energy(this.energy + 1);
+			var _g_current = 0;
+			var _g_array = this.pathCache;
+			while(_g_current < _g_array.length) {
+				var _g1_value = _g_array[_g_current];
+				var _g1_key = _g_current++;
+				var cellI = _g1_key;
+				var cell = _g1_value;
+				if(this.energy != 0) {
+					this.set_cellX(cell.x);
+					this.set_cellY(cell.y);
+				} else {
+					break;
+				}
+				if(cellI + 1 != this.pathCache.length) {
+					var _g = 0;
+					var _g1 = Game.get_inst().maze.get_edges();
+					while(_g < _g1.length) {
+						var edge = _g1[_g];
+						++_g;
+						var c = edge.val1;
+						var size = Game.get_inst().stat.mazeSize;
+						var c1 = new tools_IntPair(c % size,Math.floor(c / size));
+						var c2 = edge.val2;
+						var size1 = Game.get_inst().stat.mazeSize;
+						var c21 = new tools_IntPair(c2 % size1,Math.floor(c2 / size1));
+						if(c1.val1 == cell.x && c1.val2 == this.pathCache[cellI + 1].y && c21.val1 == this.pathCache[cellI + 1].x && c21.val2 == cell.y || c21.val1 == cell.x && c21.val2 == this.pathCache[cellI + 1].y && c1.val1 == this.pathCache[cellI + 1].x && c1.val2 == cell.y) {
+							this.set_sledgehammerUses(this.sledgehammerUses - 1);
+							HxOverrides.remove(Game.get_inst().maze.get_edges(),edge);
+							break;
+						}
+					}
+				}
+				this.set_energy(this.energy - 1);
+			}
+			Game.get_inst().maze.drawAll();
+			Game.get_inst().removeHeroPath();
+			this.pathCache = null;
+		}
+	}
 	,__class__: Hero
-	,__properties__: $extend(openfl_display_Sprite.prototype.__properties__,{set_portals:"set_portals",set_sledgehammerUses:"set_sledgehammerUses",set_energy:"set_energy"})
+	,__properties__: $extend(openfl_display_Sprite.prototype.__properties__,{set_portals:"set_portals",set_sledgehammerUses:"set_sledgehammerUses",set_energy:"set_energy",set_cellY:"set_cellY",set_cellX:"set_cellX"})
 });
 var HxOverrides = function() { };
 $hxClasses["HxOverrides"] = HxOverrides;
@@ -4433,12 +4527,16 @@ $hxClasses["_Main.UiManager"] = _$Main_UiManager;
 _$Main_UiManager.__name__ = "_Main.UiManager";
 _$Main_UiManager.prototype = {
 	mazeSpriteContainer: null
-	,refresherButton: null
+	,endTurnButton: null
 	,mazeClearButton: null
+	,addEnergyButton: null
+	,addRandomWallsButton: null
+	,refresherButton: null
 	,uiRoot: null
 	,energyDisplayLabel: null
 	,sledgehammerDisplayLabel: null
 	,portalsDisplayLabel: null
+	,addRandomWallsTextField: null
 	,mConfig: null
 	,eConfig: null
 	,wConfig: null
@@ -4448,8 +4546,12 @@ _$Main_UiManager.prototype = {
 		this.mazeSpriteContainer = new SpriteContainer();
 		var mazeBoxContainer = this.uiRoot.findComponent("mazeBoxContainer");
 		mazeBoxContainer.addChild(this.mazeSpriteContainer);
+		this.endTurnButton = this.uiRoot.findComponent("endTurnButton");
+		this.mazeClearButton = this.uiRoot.findComponent("mazeClearButton");
+		this.addEnergyButton = this.uiRoot.findComponent("addEnergyButton");
+		this.addRandomWallsButton = this.uiRoot.findComponent("addRandomWallsButton");
 		this.refresherButton = this.uiRoot.findComponent("refresher");
-		this.mazeClearButton = this.uiRoot.findComponent("mazeClear");
+		this.addRandomWallsTextField = this.uiRoot.findComponent("addRandomWallsTextField");
 		this.mConfig = this.uiRoot.findComponent("mConfig");
 		this.eConfig = this.uiRoot.findComponent("eConfig");
 		this.wConfig = this.uiRoot.findComponent("wConfig");
@@ -4487,7 +4589,7 @@ ManifestResources.init = function(config) {
 		ManifestResources.rootPath = "./";
 	}
 	var bundle;
-	var data = "{\"name\":null,\"assets\":\"aoy4:pathy17:assets%2Fmain.xmly4:sizei2283y4:typey4:TEXTy2:idR1y7:preloadtgoR0y20:assets%2Fdoomguy.pngR2i5625R3y5:IMAGER5R7R6tgh\",\"rootPath\":null,\"version\":2,\"libraryArgs\":[],\"libraryType\":null}";
+	var data = "{\"name\":null,\"assets\":\"aoy4:pathy17:assets%2Fmain.xmly4:sizei2371y4:typey4:TEXTy2:idR1y7:preloadtgoR0y20:assets%2Fdoomguy.pngR2i5625R3y5:IMAGER5R7R6tgh\",\"rootPath\":null,\"version\":2,\"libraryArgs\":[],\"libraryType\":null}";
 	var manifest = lime_utils_AssetManifest.parse(data,ManifestResources.rootPath);
 	var library = lime_utils_AssetLibrary.fromManifest(manifest);
 	lime_utils_Assets.registerLibrary("default",library);
@@ -4500,29 +4602,44 @@ ManifestResources.init = function(config) {
 };
 Math.__name__ = "Math";
 var _$Maze_InteractiveCell = function(cellX,cellY,size) {
-	var _gthis = this;
 	openfl_display_Sprite.call(this);
 	this.set_x(cellX * size);
 	this.set_y(cellY * size);
-	this.coord = new openfl_geom_Point(cellX,cellY);
+	this.cellX = cellX;
+	this.cellY = cellY;
 	this.get_graphics().beginFill(0,0);
 	this.get_graphics().drawRect(-1,-1,size + 1,size + 1);
 	this.get_graphics().endFill();
-	this.addEventListener("mouseOver",function(e) {
-		Game.get_inst().getPathPreviewFromHero(_gthis.coord);
-	});
-	this.addEventListener("mouseOut",function(e) {
-		Game.get_inst().removeHeroPath();
-	});
+	this.addEventListener("mouseOver",$bind(this,this.cellOnOver));
+	this.addEventListener("mouseOut",$bind(this,this.cellOnOut));
+	this.addEventListener("click",$bind(this,this.cellOnClick));
 };
 $hxClasses["_Maze.InteractiveCell"] = _$Maze_InteractiveCell;
 _$Maze_InteractiveCell.__name__ = "_Maze.InteractiveCell";
 _$Maze_InteractiveCell.__super__ = openfl_display_Sprite;
 _$Maze_InteractiveCell.prototype = $extend(openfl_display_Sprite.prototype,{
-	coord: null
-	,drawPath: function() {
+	cellX: null
+	,cellY: null
+	,cellOnOver: function(_) {
+		if(Game.get_inst().controlStatus._hx_index == 0) {
+			Game.get_inst().getPathPreviewFromHero(this.cellX,this.cellY);
+		}
 	}
-	,removePath: function() {
+	,cellOnOut: function(_) {
+		Game.get_inst().removeHeroPath();
+	}
+	,cellOnClick: function(_) {
+		switch(Game.get_inst().controlStatus._hx_index) {
+		case 0:
+			Game.get_inst().hero.moveByPath();
+			break;
+		case 1:
+			Game.get_inst().hero.setCellPosition(this.cellX,this.cellY);
+			break;
+		case 2:
+			Game.get_inst().maze.toggleWallsInCell(this.cellX,this.cellY);
+			break;
+		}
 	}
 	,__class__: _$Maze_InteractiveCell
 });
@@ -4549,6 +4666,7 @@ Maze.prototype = $extend(openfl_display_Sprite.prototype,{
 	,backgroundColor: null
 	,cellGridColor: null
 	,wallColor: null
+	,toolTip: null
 	,generate: function() {
 		this.kruskal = new tools_KruskalMazeGen(this.size,this.cellSize);
 		this.kruskal.generate();
@@ -4569,7 +4687,6 @@ Maze.prototype = $extend(openfl_display_Sprite.prototype,{
 	}
 	,drawAll: function() {
 		this.get_graphics().clear();
-		this.kruskal.get_graphics().clear();
 		this.get_graphics().beginFill(this.backgroundColor);
 		this.get_graphics().drawRect(0,0,this.size * this.cellSize,this.size * this.cellSize);
 		this.get_graphics().endFill();
@@ -4587,6 +4704,72 @@ Maze.prototype = $extend(openfl_display_Sprite.prototype,{
 		}
 		this.get_graphics().endFill();
 		this.redrawWalls();
+	}
+	,displayTooltip: function(x,y,string) {
+		if(this.toolTip == null) {
+			this.toolTip = new openfl_display_Sprite();
+			this.addChild(this.toolTip);
+		}
+		var text = new openfl_text_TextField();
+		text.set_text(string);
+		text.set_textColor(16777215);
+		text.invalidate();
+		this.toolTip.set_visible(true);
+		this.toolTip.set_x(x);
+		this.toolTip.set_y(y);
+		this.toolTip.removeChildren();
+		this.toolTip.get_graphics().clear();
+		this.toolTip.get_graphics().beginFill(0,0.55);
+		this.toolTip.get_graphics().drawRoundRect(-5,0,text.get_textWidth() + 15,text.get_textHeight() + 10,6,6);
+		this.toolTip.addChild(text);
+		this.toolTip.mouseEnabled = false;
+		text.mouseEnabled = false;
+		this.toolTip.set_scaleX(this.toolTip.set_scaleY(1.2));
+	}
+	,hideToolTip: function() {
+		if(this.toolTip != null) {
+			this.toolTip.set_visible(false);
+		}
+	}
+	,toggleWallsInCell: function(x,y) {
+		var walls = [];
+		var _g = 0;
+		var _g1 = this.get_edges();
+		while(_g < _g1.length) {
+			var edge = _g1[_g];
+			++_g;
+			var c = edge.val1;
+			var size = this.size;
+			var c1 = new tools_IntPair(c % size,Math.floor(c / size));
+			var c2 = edge.val2;
+			var size1 = this.size;
+			var c21 = new tools_IntPair(c2 % size1,Math.floor(c2 / size1));
+			if(x == c1.val1 && y == c1.val2 || x == c21.val1 && y == c21.val2) {
+				walls.push(edge);
+			}
+		}
+		if(walls.length > 0) {
+			var _g = 0;
+			while(_g < walls.length) {
+				var wall = walls[_g];
+				++_g;
+				HxOverrides.remove(this.get_edges(),wall);
+			}
+		} else {
+			if(x < this.size - 1) {
+				this.get_edges().push(new tools_IntPair(x + y * this.size,x + 1 + y * this.size));
+			}
+			if(x > 0) {
+				this.get_edges().push(new tools_IntPair(x + y * this.size,x - 1 + y * this.size));
+			}
+			if(y < this.size - 1) {
+				this.get_edges().push(new tools_IntPair(x + y * this.size,x + (y + 1) * this.size));
+			}
+			if(y > 0) {
+				this.get_edges().push(new tools_IntPair(x + y * this.size,x + (y - 1) * this.size));
+			}
+		}
+		this.drawAll();
 	}
 	,redrawWalls: function() {
 		this.kruskal.drawWalls(this.wallColor);
@@ -12046,41 +12229,7 @@ haxe_ui_Toolkit.build = function() {
 	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.core.ComponentContainer","disabled","Bool");
 	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.core.ComponentBounds","percentWidth","Null<Float>");
 	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.core.ComponentBounds","percentHeight","Null<Float>");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ScrollView","vscrollPos","Float");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ScrollView","vscrollPageSize","Float");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ScrollView","vscrollMax","Float");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ScrollView","virtual","Bool");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ScrollView","scrollMode","ScrollMode");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ScrollView","percentContentWidth","Null<Float>");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ScrollView","percentContentHeight","Null<Float>");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ScrollView","hscrollPos","Float");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ScrollView","hscrollPageSize","Float");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ScrollView","hscrollMax","Float");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ScrollView","contents","Component");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ScrollView","contentWidth","Null<Float>");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ScrollView","contentLayoutName","String");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ScrollView","contentHeight","Null<Float>");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ListView","variableItemSize","Bool");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ListView","value","Int");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ListView","selectionMode","SelectionMode");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ListView","selectedItems","Array<Dynamic>");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ListView","selectedItem","Dynamic");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ListView","selectedIndices","Array<Int>");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ListView","selectedIndex","Int");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ListView","longPressSelectionTime","Int");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ListView","itemWidth","Float");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ListView","itemHeight","Float");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ListView","itemCount","Int");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.ListView","dataSource","DataSource<Dynamic>");
 	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.containers.Box","icon","String");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.TextField","value","String");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.TextField","text","String");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.TextField","restrictChars","String");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.TextField","placeholder","String");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.TextField","password","Bool");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.TextField","maxChars","Int");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.TextField","icon","String");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.TextField","htmlText","String");
 	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.TextArea","wrap","Bool");
 	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.TextArea","value","String");
 	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.TextArea","text","String");
@@ -12096,13 +12245,6 @@ haxe_ui_Toolkit.build = function() {
 	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.Label","value","String");
 	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.Label","text","String");
 	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.Label","htmlText","String");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.Image","value","Variant");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.Image","scaleMode","ScaleMode");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.Image","resource","Variant");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.Image","originalWidth","Float");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.Image","originalHeight","Float");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.Image","imageVerticalAlign","VerticalAlign");
-	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.Image","imageHorizontalAlign","HorizontalAlign");
 	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.Button","value","String");
 	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.Button","toggle","Bool");
 	haxe_ui_core_TypeMap.addTypeInfo("haxe.ui.components.Button","text","String");
@@ -17812,1841 +17954,6 @@ haxe_ui_containers_HBox.prototype = $extend(haxe_ui_containers_Box.prototype,{
 	,__class__: haxe_ui_containers_HBox
 	,__properties__: $extend(haxe_ui_containers_Box.prototype.__properties__,{set_continuous:"set_continuous",get_continuous:"get_continuous"})
 });
-var haxe_ui_containers_IVirtualContainer = function() { };
-$hxClasses["haxe.ui.containers.IVirtualContainer"] = haxe_ui_containers_IVirtualContainer;
-haxe_ui_containers_IVirtualContainer.__name__ = "haxe.ui.containers.IVirtualContainer";
-haxe_ui_containers_IVirtualContainer.__isInterface__ = true;
-haxe_ui_containers_IVirtualContainer.prototype = {
-	get_itemWidth: null
-	,set_itemWidth: null
-	,get_itemHeight: null
-	,set_itemHeight: null
-	,get_itemCount: null
-	,set_itemCount: null
-	,get_variableItemSize: null
-	,set_variableItemSize: null
-	,get_virtual: null
-	,set_virtual: null
-	,get_hscrollPos: null
-	,set_hscrollPos: null
-	,get_hscrollMax: null
-	,set_hscrollMax: null
-	,get_hscrollPageSize: null
-	,set_hscrollPageSize: null
-	,get_vscrollPos: null
-	,set_vscrollPos: null
-	,get_vscrollMax: null
-	,set_vscrollMax: null
-	,get_vscrollPageSize: null
-	,set_vscrollPageSize: null
-	,get_itemRenderer: null
-	,set_itemRenderer: null
-	,get_itemRendererClass: null
-	,set_itemRendererClass: null
-	,__class__: haxe_ui_containers_IVirtualContainer
-	,__properties__: {set_itemRendererClass:"set_itemRendererClass",get_itemRendererClass:"get_itemRendererClass",set_itemRenderer:"set_itemRenderer",get_itemRenderer:"get_itemRenderer",set_vscrollPageSize:"set_vscrollPageSize",get_vscrollPageSize:"get_vscrollPageSize",set_vscrollMax:"set_vscrollMax",get_vscrollMax:"get_vscrollMax",set_vscrollPos:"set_vscrollPos",get_vscrollPos:"get_vscrollPos",set_hscrollPageSize:"set_hscrollPageSize",get_hscrollPageSize:"get_hscrollPageSize",set_hscrollMax:"set_hscrollMax",get_hscrollMax:"get_hscrollMax",set_hscrollPos:"set_hscrollPos",get_hscrollPos:"get_hscrollPos",set_virtual:"set_virtual",get_virtual:"get_virtual",set_variableItemSize:"set_variableItemSize",get_variableItemSize:"get_variableItemSize",set_itemCount:"set_itemCount",get_itemCount:"get_itemCount",set_itemHeight:"set_itemHeight",get_itemHeight:"get_itemHeight",set_itemWidth:"set_itemWidth",get_itemWidth:"get_itemWidth"}
-};
-var haxe_ui_core_IScrollView = function() { };
-$hxClasses["haxe.ui.core.IScrollView"] = haxe_ui_core_IScrollView;
-haxe_ui_core_IScrollView.__name__ = "haxe.ui.core.IScrollView";
-haxe_ui_core_IScrollView.__isInterface__ = true;
-haxe_ui_core_IScrollView.prototype = {
-	ensureVisible: null
-	,__class__: haxe_ui_core_IScrollView
-};
-var haxe_ui_containers_ScrollView = function() {
-	haxe_ui_core_Component.call(this);
-};
-$hxClasses["haxe.ui.containers.ScrollView"] = haxe_ui_containers_ScrollView;
-haxe_ui_containers_ScrollView.__name__ = "haxe.ui.containers.ScrollView";
-haxe_ui_containers_ScrollView.__interfaces__ = [haxe_ui_core_IScrollView];
-haxe_ui_containers_ScrollView.__super__ = haxe_ui_core_Component;
-haxe_ui_containers_ScrollView.prototype = $extend(haxe_ui_core_Component.prototype,{
-	validateComponentInternal: function(nextFrame) {
-		if(nextFrame == null) {
-			nextFrame = true;
-		}
-		if(this.get_native() == true) {
-			haxe_ui_core_Component.prototype.validateComponentInternal.call(this,nextFrame);
-			return;
-		}
-		var scrollInvalid = this.isComponentInvalid("scroll");
-		var layoutInvalid = this.isComponentInvalid("layout");
-		haxe_ui_core_Component.prototype.validateComponentInternal.call(this,nextFrame);
-		if(scrollInvalid || layoutInvalid) {
-			(js_Boot.__cast(this._compositeBuilder , haxe_ui_containers_ScrollViewBuilder)).checkScrolls();
-			(js_Boot.__cast(this._compositeBuilder , haxe_ui_containers_ScrollViewBuilder)).updateScrollRect();
-		}
-	}
-	,ensureVisible: function(component) {
-		return;
-	}
-	,get_isScroller: function() {
-		return true;
-	}
-	,registerComposite: function() {
-		haxe_ui_core_Component.prototype.registerComposite.call(this);
-		this._internalEventsClass = haxe_ui_containers_ScrollViewEvents;
-		this._compositeBuilderClass = haxe_ui_containers_ScrollViewBuilder;
-		this._defaultLayoutClass = haxe_ui_layouts_ScrollViewLayout;
-	}
-	,registerBehaviours: function() {
-		haxe_ui_core_Component.prototype.registerBehaviours.call(this);
-		this.behaviours.register("virtual",haxe_ui_containers__$ScrollView_Virtual);
-		this.behaviours.register("contentLayoutName",haxe_ui_containers__$ScrollView_ContentLayoutName,haxe_ui_util_Variant.fromString("vertical"));
-		this.behaviours.register("contentWidth",haxe_ui_containers__$ScrollView_ContentWidth);
-		this.behaviours.register("percentContentWidth",haxe_ui_containers__$ScrollView_PercentContentWidth);
-		this.behaviours.register("contentHeight",haxe_ui_containers__$ScrollView_ContentHeight);
-		this.behaviours.register("percentContentHeight",haxe_ui_containers__$ScrollView_PercentContentHeight);
-		this.behaviours.register("hscrollPos",haxe_ui_containers__$ScrollView_HScrollPos);
-		this.behaviours.register("hscrollMax",haxe_ui_containers__$ScrollView_HScrollMax);
-		this.behaviours.register("hscrollPageSize",haxe_ui_containers__$ScrollView_HScrollPageSize);
-		this.behaviours.register("vscrollPos",haxe_ui_containers__$ScrollView_VScrollPos);
-		this.behaviours.register("vscrollMax",haxe_ui_containers__$ScrollView_VScrollMax);
-		this.behaviours.register("vscrollPageSize",haxe_ui_containers__$ScrollView_VScrollPageSize);
-		this.behaviours.register("scrollMode",haxe_ui_containers__$ScrollView_ScrollModeBehaviour,haxe_ui_util_Variant.fromString("drag"));
-		this.behaviours.register("contents",haxe_ui_containers__$ScrollView_GetContents);
-	}
-	,get_virtual: function() {
-		return haxe_ui_util_Variant.toBool(this.behaviours.get("virtual"));
-	}
-	,set_virtual: function(value) {
-		this.behaviours.set("virtual",haxe_ui_util_Variant.fromBool(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"virtual"));
-		return value;
-	}
-	,get_contentLayoutName: function() {
-		return haxe_ui_util_Variant.toString(this.behaviours.get("contentLayoutName"));
-	}
-	,set_contentLayoutName: function(value) {
-		var _g = Type.typeof(value);
-		if(_g._hx_index == 6) {
-			if(_g.c == String) {
-				if(value != null && value.indexOf("{{") != -1 && value.indexOf("}}") != -1) {
-					haxe_ui_locale_LocaleManager.get_instance().registerComponent(this,"contentLayoutName",null,value);
-					return value;
-				}
-			}
-		}
-		this.behaviours.set("contentLayoutName",haxe_ui_util_Variant.fromString(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"contentLayoutName"));
-		return value;
-	}
-	,get_contentWidth: function() {
-		return haxe_ui_util_Variant.toFloat(this.behaviours.get("contentWidth"));
-	}
-	,set_contentWidth: function(value) {
-		this.behaviours.set("contentWidth",haxe_ui_util_Variant.fromFloat(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"contentWidth"));
-		return value;
-	}
-	,get_percentContentWidth: function() {
-		return haxe_ui_util_Variant.toFloat(this.behaviours.get("percentContentWidth"));
-	}
-	,set_percentContentWidth: function(value) {
-		this.behaviours.set("percentContentWidth",haxe_ui_util_Variant.fromFloat(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"percentContentWidth"));
-		return value;
-	}
-	,get_contentHeight: function() {
-		return haxe_ui_util_Variant.toFloat(this.behaviours.get("contentHeight"));
-	}
-	,set_contentHeight: function(value) {
-		this.behaviours.set("contentHeight",haxe_ui_util_Variant.fromFloat(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"contentHeight"));
-		return value;
-	}
-	,get_percentContentHeight: function() {
-		return haxe_ui_util_Variant.toFloat(this.behaviours.get("percentContentHeight"));
-	}
-	,set_percentContentHeight: function(value) {
-		this.behaviours.set("percentContentHeight",haxe_ui_util_Variant.fromFloat(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"percentContentHeight"));
-		return value;
-	}
-	,get_hscrollPos: function() {
-		return haxe_ui_util_Variant.toFloat(this.behaviours.get("hscrollPos"));
-	}
-	,set_hscrollPos: function(value) {
-		this.behaviours.set("hscrollPos",haxe_ui_util_Variant.fromFloat(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"hscrollPos"));
-		return value;
-	}
-	,get_hscrollMax: function() {
-		return haxe_ui_util_Variant.toFloat(this.behaviours.get("hscrollMax"));
-	}
-	,set_hscrollMax: function(value) {
-		this.behaviours.set("hscrollMax",haxe_ui_util_Variant.fromFloat(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"hscrollMax"));
-		return value;
-	}
-	,get_hscrollPageSize: function() {
-		return haxe_ui_util_Variant.toFloat(this.behaviours.get("hscrollPageSize"));
-	}
-	,set_hscrollPageSize: function(value) {
-		this.behaviours.set("hscrollPageSize",haxe_ui_util_Variant.fromFloat(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"hscrollPageSize"));
-		return value;
-	}
-	,get_vscrollPos: function() {
-		return haxe_ui_util_Variant.toFloat(this.behaviours.get("vscrollPos"));
-	}
-	,set_vscrollPos: function(value) {
-		this.behaviours.set("vscrollPos",haxe_ui_util_Variant.fromFloat(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"vscrollPos"));
-		return value;
-	}
-	,get_vscrollMax: function() {
-		return haxe_ui_util_Variant.toFloat(this.behaviours.get("vscrollMax"));
-	}
-	,set_vscrollMax: function(value) {
-		this.behaviours.set("vscrollMax",haxe_ui_util_Variant.fromFloat(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"vscrollMax"));
-		return value;
-	}
-	,get_vscrollPageSize: function() {
-		return haxe_ui_util_Variant.toFloat(this.behaviours.get("vscrollPageSize"));
-	}
-	,set_vscrollPageSize: function(value) {
-		this.behaviours.set("vscrollPageSize",haxe_ui_util_Variant.fromFloat(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"vscrollPageSize"));
-		return value;
-	}
-	,get_scrollMode: function() {
-		return haxe_ui_util_Variant.toString(this.behaviours.get("scrollMode"));
-	}
-	,set_scrollMode: function(value) {
-		this.behaviours.set("scrollMode",haxe_ui_util_Variant.fromString(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"scrollMode"));
-		return value;
-	}
-	,get_contents: function() {
-		return haxe_ui_util_Variant.toComponent(this.behaviours.get("contents"));
-	}
-	,set_contents: function(value) {
-		this.behaviours.set("contents",haxe_ui_util_Variant.fromComponent(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"contents"));
-		return value;
-	}
-	,cloneComponent: function() {
-		var c = haxe_ui_core_Component.prototype.cloneComponent.call(this);
-		if((this._children == null ? [] : this._children).length != (c._children == null ? [] : c._children).length) {
-			var _g = 0;
-			var _g1 = this._children == null ? [] : this._children;
-			while(_g < _g1.length) {
-				var child = _g1[_g];
-				++_g;
-				c.addComponent(child.cloneComponent());
-			}
-		}
-		return c;
-	}
-	,self: function() {
-		return new haxe_ui_containers_ScrollView();
-	}
-	,__class__: haxe_ui_containers_ScrollView
-	,__properties__: $extend(haxe_ui_core_Component.prototype.__properties__,{set_contents:"set_contents",get_contents:"get_contents",set_scrollMode:"set_scrollMode",get_scrollMode:"get_scrollMode",set_vscrollPageSize:"set_vscrollPageSize",get_vscrollPageSize:"get_vscrollPageSize",set_vscrollMax:"set_vscrollMax",get_vscrollMax:"get_vscrollMax",set_vscrollPos:"set_vscrollPos",get_vscrollPos:"get_vscrollPos",set_hscrollPageSize:"set_hscrollPageSize",get_hscrollPageSize:"get_hscrollPageSize",set_hscrollMax:"set_hscrollMax",get_hscrollMax:"get_hscrollMax",set_hscrollPos:"set_hscrollPos",get_hscrollPos:"get_hscrollPos",set_percentContentHeight:"set_percentContentHeight",get_percentContentHeight:"get_percentContentHeight",set_contentHeight:"set_contentHeight",get_contentHeight:"get_contentHeight",set_percentContentWidth:"set_percentContentWidth",get_percentContentWidth:"get_percentContentWidth",set_contentWidth:"set_contentWidth",get_contentWidth:"get_contentWidth",set_contentLayoutName:"set_contentLayoutName",get_contentLayoutName:"get_contentLayoutName",set_virtual:"set_virtual",get_virtual:"get_virtual"})
-});
-var haxe_ui_core_IDataComponent = function() { };
-$hxClasses["haxe.ui.core.IDataComponent"] = haxe_ui_core_IDataComponent;
-haxe_ui_core_IDataComponent.__name__ = "haxe.ui.core.IDataComponent";
-haxe_ui_core_IDataComponent.__isInterface__ = true;
-haxe_ui_core_IDataComponent.prototype = {
-	get_dataSource: null
-	,set_dataSource: null
-	,__class__: haxe_ui_core_IDataComponent
-	,__properties__: {set_dataSource:"set_dataSource",get_dataSource:"get_dataSource"}
-};
-var haxe_ui_containers_ListView = function() {
-	haxe_ui_containers_ScrollView.call(this);
-};
-$hxClasses["haxe.ui.containers.ListView"] = haxe_ui_containers_ListView;
-haxe_ui_containers_ListView.__name__ = "haxe.ui.containers.ListView";
-haxe_ui_containers_ListView.__interfaces__ = [haxe_ui_containers_IVirtualContainer,haxe_ui_core_IDataComponent];
-haxe_ui_containers_ListView.__super__ = haxe_ui_containers_ScrollView;
-haxe_ui_containers_ListView.prototype = $extend(haxe_ui_containers_ScrollView.prototype,{
-	_itemRendererClass: null
-	,get_itemRendererClass: function() {
-		return this._itemRendererClass;
-	}
-	,set_itemRendererClass: function(value) {
-		if(this._itemRendererClass != value) {
-			this._itemRendererClass = value;
-			if(!(this._layout == null || this._layoutLocked == true)) {
-				this.invalidateComponent("layout",false);
-			}
-		}
-		return value;
-	}
-	,_itemRenderer: null
-	,get_itemRenderer: function() {
-		return this._itemRenderer;
-	}
-	,set_itemRenderer: function(value) {
-		if(this._itemRenderer != value) {
-			this._itemRenderer = value;
-			if(!(this._layout == null || this._layoutLocked == true)) {
-				this.invalidateComponent("layout",false);
-			}
-		}
-		return value;
-	}
-	,registerBehaviours: function() {
-		haxe_ui_containers_ScrollView.prototype.registerBehaviours.call(this);
-		this.behaviours.register("dataSource",haxe_ui_containers__$ListView_DataSourceBehaviour);
-		this.behaviours.register("itemWidth",haxe_ui_behaviours_LayoutBehaviour,haxe_ui_util_Variant.fromInt(-1));
-		this.behaviours.register("itemHeight",haxe_ui_behaviours_LayoutBehaviour,haxe_ui_util_Variant.fromInt(-1));
-		this.behaviours.register("itemCount",haxe_ui_behaviours_LayoutBehaviour,haxe_ui_util_Variant.fromInt(-1));
-		this.behaviours.register("variableItemSize",haxe_ui_behaviours_LayoutBehaviour,haxe_ui_util_Variant.fromBool(false));
-		this.behaviours.register("selectedIndex",haxe_ui_containers__$ListView_SelectedIndexBehaviour,haxe_ui_util_Variant.fromInt(-1));
-		this.behaviours.register("selectedItem",haxe_ui_containers__$ListView_SelectedItemBehaviour);
-		this.behaviours.register("selectedIndices",haxe_ui_containers__$ListView_SelectedIndicesBehaviour);
-		this.behaviours.register("selectedItems",haxe_ui_containers__$ListView_SelectedItemsBehaviour);
-		this.behaviours.register("selectionMode",haxe_ui_containers__$ListView_SelectionModeBehaviour,haxe_ui_util_Variant.fromString("one-item"));
-		this.behaviours.register("longPressSelectionTime",haxe_ui_behaviours_DefaultBehaviour,haxe_ui_util_Variant.fromInt(500));
-	}
-	,get_dataSource: function() {
-		return haxe_ui_util_Variant.toDataSource(this.behaviours.get("dataSource"));
-	}
-	,set_dataSource: function(value) {
-		this.behaviours.set("dataSource",haxe_ui_util_Variant.fromDataSource(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"dataSource"));
-		return value;
-	}
-	,get_itemWidth: function() {
-		return haxe_ui_util_Variant.toFloat(this.behaviours.get("itemWidth"));
-	}
-	,set_itemWidth: function(value) {
-		this.behaviours.set("itemWidth",haxe_ui_util_Variant.fromFloat(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"itemWidth"));
-		return value;
-	}
-	,get_itemHeight: function() {
-		return haxe_ui_util_Variant.toFloat(this.behaviours.get("itemHeight"));
-	}
-	,set_itemHeight: function(value) {
-		this.behaviours.set("itemHeight",haxe_ui_util_Variant.fromFloat(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"itemHeight"));
-		return value;
-	}
-	,get_itemCount: function() {
-		return haxe_ui_util_Variant.toInt(this.behaviours.get("itemCount"));
-	}
-	,set_itemCount: function(value) {
-		this.behaviours.set("itemCount",haxe_ui_util_Variant.fromInt(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"itemCount"));
-		return value;
-	}
-	,get_variableItemSize: function() {
-		return haxe_ui_util_Variant.toBool(this.behaviours.get("variableItemSize"));
-	}
-	,set_variableItemSize: function(value) {
-		this.behaviours.set("variableItemSize",haxe_ui_util_Variant.fromBool(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"variableItemSize"));
-		return value;
-	}
-	,get_selectedIndex: function() {
-		return haxe_ui_util_Variant.toInt(this.behaviours.get("selectedIndex"));
-	}
-	,set_selectedIndex: function(value) {
-		this.behaviours.set("selectedIndex",haxe_ui_util_Variant.fromInt(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"selectedIndex"));
-		return value;
-	}
-	,get_selectedItem: function() {
-		return this.behaviours.getDynamic("selectedItem");
-	}
-	,set_selectedItem: function(value) {
-		this.behaviours.setDynamic("selectedItem",value);
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"selectedItem"));
-		return value;
-	}
-	,get_selectedIndices: function() {
-		return haxe_ui_util_Variant.toArray(this.behaviours.get("selectedIndices"));
-	}
-	,set_selectedIndices: function(value) {
-		this.behaviours.set("selectedIndices",haxe_ui_util_Variant.fromArray(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"selectedIndices"));
-		return value;
-	}
-	,get_selectedItems: function() {
-		return haxe_ui_util_Variant.toArray(this.behaviours.get("selectedItems"));
-	}
-	,set_selectedItems: function(value) {
-		this.behaviours.set("selectedItems",haxe_ui_util_Variant.fromArray(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"selectedItems"));
-		return value;
-	}
-	,get_selectionMode: function() {
-		return haxe_ui_util_Variant.toString(this.behaviours.get("selectionMode"));
-	}
-	,set_selectionMode: function(value) {
-		this.behaviours.set("selectionMode",haxe_ui_util_Variant.fromString(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"selectionMode"));
-		return value;
-	}
-	,get_longPressSelectionTime: function() {
-		return haxe_ui_util_Variant.toInt(this.behaviours.get("longPressSelectionTime"));
-	}
-	,set_longPressSelectionTime: function(value) {
-		this.behaviours.set("longPressSelectionTime",haxe_ui_util_Variant.fromInt(value));
-		this.dispatch(new haxe_ui_events_UIEvent("propertyChange",null,"longPressSelectionTime"));
-		return value;
-	}
-	,get_value: function() {
-		return this.get_selectedIndex();
-	}
-	,set_value: function(value) {
-		this.set_selectedIndex(value);
-		return value;
-	}
-	,cloneComponent: function() {
-		var c = haxe_ui_containers_ScrollView.prototype.cloneComponent.call(this);
-		if((this._children == null ? [] : this._children).length != (c._children == null ? [] : c._children).length) {
-			var _g = 0;
-			var _g1 = this._children == null ? [] : this._children;
-			while(_g < _g1.length) {
-				var child = _g1[_g];
-				++_g;
-				c.addComponent(child.cloneComponent());
-			}
-		}
-		return c;
-	}
-	,self: function() {
-		return new haxe_ui_containers_ListView();
-	}
-	,registerComposite: function() {
-		haxe_ui_containers_ScrollView.prototype.registerComposite.call(this);
-		this._internalEventsClass = haxe_ui_containers_ListViewEvents;
-		this._compositeBuilderClass = haxe_ui_containers__$ListView_ListViewBuilder;
-		this._defaultLayoutClass = haxe_ui_layouts_VerticalVirtualLayout;
-	}
-	,__onComponentEvent: null
-	,onComponentEvent: null
-	,set_onComponentEvent: function(value) {
-		if(this.__onComponentEvent != null) {
-			this.unregisterEvent("itemComponentEvent",this.__onComponentEvent);
-			this.__onComponentEvent = null;
-		}
-		if(value != null) {
-			this.__onComponentEvent = value;
-			this.registerEvent("itemComponentEvent",value);
-		}
-		return value;
-	}
-	,__class__: haxe_ui_containers_ListView
-	,__properties__: $extend(haxe_ui_containers_ScrollView.prototype.__properties__,{set_onComponentEvent:"set_onComponentEvent",set_longPressSelectionTime:"set_longPressSelectionTime",get_longPressSelectionTime:"get_longPressSelectionTime",set_selectionMode:"set_selectionMode",get_selectionMode:"get_selectionMode",set_selectedItems:"set_selectedItems",get_selectedItems:"get_selectedItems",set_selectedIndices:"set_selectedIndices",get_selectedIndices:"get_selectedIndices",set_selectedItem:"set_selectedItem",get_selectedItem:"get_selectedItem",set_selectedIndex:"set_selectedIndex",get_selectedIndex:"get_selectedIndex",set_variableItemSize:"set_variableItemSize",get_variableItemSize:"get_variableItemSize",set_itemCount:"set_itemCount",get_itemCount:"get_itemCount",set_itemHeight:"set_itemHeight",get_itemHeight:"get_itemHeight",set_itemWidth:"set_itemWidth",get_itemWidth:"get_itemWidth",set_dataSource:"set_dataSource",get_dataSource:"get_dataSource",set_itemRenderer:"set_itemRenderer",get_itemRenderer:"get_itemRenderer",set_itemRendererClass:"set_itemRendererClass",get_itemRendererClass:"get_itemRendererClass"})
-});
-var haxe_ui_containers_ScrollViewEvents = function(scrollview) {
-	this._fadeTimer = null;
-	this._containerEventsPaused = false;
-	this._lastMousePos = null;
-	this._movementThreshold = 3;
-	this._inertia = null;
-	haxe_ui_events_Events.call(this,scrollview);
-	this._scrollview = scrollview;
-};
-$hxClasses["haxe.ui.containers.ScrollViewEvents"] = haxe_ui_containers_ScrollViewEvents;
-haxe_ui_containers_ScrollViewEvents.__name__ = "haxe.ui.containers.ScrollViewEvents";
-haxe_ui_containers_ScrollViewEvents.__super__ = haxe_ui_events_Events;
-haxe_ui_containers_ScrollViewEvents.prototype = $extend(haxe_ui_events_Events.prototype,{
-	_scrollview: null
-	,register: function() {
-		var contents = this._scrollview.findComponent("scrollview-contents",null,false,"css");
-		if(contents != null && contents.hasEvent("resize",$bind(this,this.onContentsResized)) == false) {
-			contents.registerEvent("resize",$bind(this,this.onContentsResized));
-		}
-		var hscroll = this._scrollview.findComponent(null,haxe_ui_components_HorizontalScroll,false);
-		if(hscroll != null && hscroll.hasEvent("change",$bind(this,this.onHScroll)) == false) {
-			hscroll.registerEvent("change",$bind(this,this.onHScroll));
-		}
-		var vscroll = this._scrollview.findComponent(null,haxe_ui_components_VerticalScroll,false);
-		if(vscroll != null && vscroll.hasEvent("change",$bind(this,this.onVScroll)) == false) {
-			vscroll.registerEvent("change",$bind(this,this.onVScroll));
-		}
-		if(this._scrollview.get_scrollMode() == "drag" || this._scrollview.get_scrollMode() == "inertial") {
-			this.registerEvent("mousedown",$bind(this,this.onMouseDown));
-		} else if(this.hasEvent("mousedown",$bind(this,this.onMouseDown)) == false) {
-			this.unregisterEvent("mousedown",$bind(this,this.onMouseDown));
-		}
-		if(this._scrollview.hasEvent("shown") == false) {
-			this.registerEvent("shown",$bind(this,this.onShown));
-		}
-		this.registerEvent("mousewheel",$bind(this,this.onMouseWheel));
-	}
-	,unregister: function() {
-		var contents = this._scrollview.findComponent("scrollview-contents",null,false,"css");
-		if(contents != null) {
-			contents.unregisterEvent("resize",$bind(this,this.onContentsResized));
-		}
-		var hscroll = this._scrollview.findComponent(null,haxe_ui_components_HorizontalScroll,false);
-		if(hscroll != null) {
-			hscroll.unregisterEvent("change",$bind(this,this.onHScroll));
-		}
-		var vscroll = this._scrollview.findComponent(null,haxe_ui_components_VerticalScroll,false);
-		if(vscroll != null) {
-			vscroll.unregisterEvent("change",$bind(this,this.onVScroll));
-		}
-		this.unregisterEvent("mousedown",$bind(this,this.onMouseDown));
-		this.unregisterEvent("mousewheel",$bind(this,this.onMouseWheel));
-		this.unregisterEvent("shown",$bind(this,this.onShown));
-	}
-	,onShown: function(event) {
-		var _this = this._scrollview;
-		if(!(_this._layout == null || _this._layoutLocked == true)) {
-			_this.invalidateComponent("layout",false);
-		}
-		var hscroll = this._scrollview.findComponent(null,haxe_ui_components_HorizontalScroll,false);
-		if(hscroll != null) {
-			if(!(hscroll._layout == null || hscroll._layoutLocked == true)) {
-				hscroll.invalidateComponent("layout",false);
-			}
-		}
-		var vscroll = this._scrollview.findComponent(null,haxe_ui_components_VerticalScroll,false);
-		if(vscroll != null) {
-			if(!(vscroll._layout == null || vscroll._layoutLocked == true)) {
-				vscroll.invalidateComponent("layout",false);
-			}
-		}
-	}
-	,onContentsResized: function(event) {
-		this._scrollview.invalidateComponent("scroll");
-	}
-	,onHScroll: function(event) {
-		this._scrollview.invalidateComponent("scroll");
-		this._target.dispatch(new haxe_ui_events_ScrollEvent("scrollchange"));
-	}
-	,onVScroll: function(event) {
-		this._scrollview.invalidateComponent("scroll");
-		this._target.dispatch(new haxe_ui_events_ScrollEvent("scrollchange"));
-	}
-	,_offset: null
-	,_inertia: null
-	,onMouseDown: function(event) {
-		var hscroll = this._scrollview.findComponent(null,haxe_ui_components_HorizontalScroll,false);
-		var vscroll = this._scrollview.findComponent(null,haxe_ui_components_VerticalScroll,false);
-		if(hscroll == null && vscroll == null) {
-			return;
-		}
-		this._scrollview.addClass(":down");
-		this._lastMousePos = new haxe_ui_geom_Point(event.screenX,event.screenY);
-		var componentOffset = this._scrollview.getComponentOffset();
-		if(hscroll != null && hscroll.hitTest(event.screenX - componentOffset.x,event.screenY - componentOffset.y) == true) {
-			return;
-		}
-		if(vscroll != null && vscroll.hitTest(event.screenX - componentOffset.x,event.screenY - componentOffset.y) == true) {
-			return;
-		}
-		var under = this._scrollview.findComponentsUnderPoint(event.screenX - componentOffset.x,event.screenY - componentOffset.y);
-		var _g = 0;
-		while(_g < under.length) {
-			var c = under[_g];
-			++_g;
-			if(((c) instanceof haxe_ui_components_TextField)) {
-				return;
-			}
-		}
-		this._offset = new haxe_ui_geom_Point();
-		if(hscroll != null) {
-			var tmp = hscroll.get_pos();
-			this._offset.x = tmp + event.screenX;
-		}
-		if(vscroll != null) {
-			var tmp = vscroll.get_pos();
-			this._offset.y = tmp + event.screenY;
-		}
-		if(this._scrollview.get_scrollMode() == "inertial") {
-			if(this._inertia == null) {
-				this._inertia = { screen : new haxe_ui_geom_Point(), target : new haxe_ui_geom_Point(), amplitude : new haxe_ui_geom_Point(), direction : new haxe_ui_geom_Point(), timestamp : 0};
-			}
-			this._inertia.target.x = this._scrollview.get_hscrollPos();
-			this._inertia.target.y = this._scrollview.get_vscrollPos();
-			this._inertia.amplitude.x = 0;
-			this._inertia.amplitude.y = 0;
-			this._inertia.screen.x = event.screenX;
-			this._inertia.screen.y = event.screenY;
-			var tmp = new Date().getTime();
-			this._inertia.timestamp = tmp / 1000;
-		}
-		haxe_ui_core_Screen.get_instance().registerEvent("mousemove",$bind(this,this.onMouseMove));
-		haxe_ui_core_Screen.get_instance().registerEvent("mouseup",$bind(this,this.onMouseUp));
-	}
-	,_movementThreshold: null
-	,_lastMousePos: null
-	,onMouseMove: function(event) {
-		var hscroll = this._scrollview.findComponent(null,haxe_ui_components_HorizontalScroll,false);
-		if(hscroll != null) {
-			hscroll.set_pos(this._offset.x - event.screenX);
-			var distX = Math.abs(event.screenX - this._lastMousePos.x);
-			if(distX > haxe_ui_Toolkit.get_scaleX()) {
-				this.pauseContainerEvents();
-			}
-		}
-		var vscroll = this._scrollview.findComponent(null,haxe_ui_components_VerticalScroll,false);
-		if(vscroll != null) {
-			vscroll.set_pos(this._offset.y - event.screenY);
-			var distY = Math.abs(event.screenY - this._lastMousePos.y);
-			if(distY > haxe_ui_Toolkit.get_scaleY()) {
-				this.pauseContainerEvents();
-			}
-		}
-		this._lastMousePos = new haxe_ui_geom_Point(event.screenX,event.screenY);
-	}
-	,_containerEventsPaused: null
-	,pauseContainerEvents: function() {
-		if(this._containerEventsPaused == true) {
-			return;
-		}
-		this._containerEventsPaused = true;
-		this.onContainerEventsStatusChanged();
-	}
-	,resumeContainerEvents: function() {
-		if(this._containerEventsPaused == false) {
-			return;
-		}
-		this._containerEventsPaused = false;
-		this.onContainerEventsStatusChanged();
-	}
-	,onContainerEventsStatusChanged: function() {
-		this._scrollview.findComponent("scrollview-contents",haxe_ui_core_Component,true,"css").disableInteractivity(this._containerEventsPaused);
-		if(this._containerEventsPaused == true) {
-			this._scrollview.findComponent("scrollview-contents",haxe_ui_core_Component,true,"css").removeClass(":hover",true,true);
-		}
-		var hscroll = this._scrollview.findComponent(null,haxe_ui_components_HorizontalScroll,false);
-		var vscroll = this._scrollview.findComponent(null,haxe_ui_components_VerticalScroll,false);
-		if(hscroll != null || vscroll != null) {
-			var builder = js_Boot.__cast(this._scrollview._compositeBuilder , haxe_ui_containers_ScrollViewBuilder);
-			if(builder.autoHideScrolls == true) {
-				if(this._containerEventsPaused == true) {
-					if(hscroll != null) {
-						hscroll.fadeIn();
-					}
-					if(vscroll != null) {
-						vscroll.fadeIn();
-					}
-				} else {
-					if(hscroll != null) {
-						hscroll.fadeOut();
-					}
-					if(vscroll != null) {
-						vscroll.fadeOut();
-					}
-				}
-			}
-		}
-	}
-	,onMouseUp: function(event) {
-		haxe_ui_core_Screen.get_instance().unregisterEvent("mousemove",$bind(this,this.onMouseMove));
-		haxe_ui_core_Screen.get_instance().unregisterEvent("mouseup",$bind(this,this.onMouseUp));
-		if(this._scrollview.get_scrollMode() == "inertial") {
-			var now = new Date().getTime() / 1000;
-			var elapsed = (now - this._inertia.timestamp) * 1000;
-			var deltaX = Math.abs(this._inertia.screen.x - event.screenX);
-			var deltaY = Math.abs(this._inertia.screen.y - event.screenY);
-			this._inertia.direction.x = this._inertia.screen.x - event.screenX < 0 ? 0 : 1;
-			var velocityX = deltaX / elapsed;
-			var v = 1000 * deltaX / (1 + elapsed);
-			velocityX = 0.8 * v + 0.2 * velocityX;
-			this._inertia.direction.y = this._inertia.screen.y - event.screenY < 0 ? 0 : 1;
-			var velocityY = deltaY / elapsed;
-			var v = 1000 * deltaY / (1 + elapsed);
-			velocityY = 0.8 * v + 0.2 * velocityY;
-			if(velocityX <= 75 && velocityY <= 75) {
-				this.dispatch(new haxe_ui_events_ScrollEvent("scrollstop"));
-				haxe_ui_Toolkit.callLater($bind(this,this.resumeContainerEvents));
-				return;
-			}
-			var tmp = new Date().getTime();
-			this._inertia.timestamp = tmp / 1000;
-			var hscroll = this._scrollview.findComponent(null,haxe_ui_components_HorizontalScroll,false);
-			if(hscroll != null) {
-				this._inertia.amplitude.x = 0.8 * velocityX;
-			}
-			if(this._inertia.direction.x == 0) {
-				var tmp = this._scrollview.get_hscrollPos() - this._inertia.amplitude.x;
-				this._inertia.target.x = Math.round(tmp);
-			} else {
-				var tmp = this._scrollview.get_hscrollPos() + this._inertia.amplitude.x;
-				this._inertia.target.x = Math.round(tmp);
-			}
-			var vscroll = this._scrollview.findComponent(null,haxe_ui_components_VerticalScroll,false);
-			if(vscroll != null) {
-				this._inertia.amplitude.y = 0.8 * velocityY;
-			}
-			if(this._inertia.direction.y == 0) {
-				var tmp = this._scrollview.get_vscrollPos() - this._inertia.amplitude.y;
-				this._inertia.target.y = Math.round(tmp);
-			} else {
-				var tmp = this._scrollview.get_vscrollPos() + this._inertia.amplitude.y;
-				this._inertia.target.y = Math.round(tmp);
-			}
-			if(this._scrollview.get_hscrollPos() == this._inertia.target.x && this._scrollview.get_vscrollPos() == this._inertia.target.y) {
-				this.dispatch(new haxe_ui_events_ScrollEvent("scrollstop"));
-				haxe_ui_Toolkit.callLater($bind(this,this.resumeContainerEvents));
-				return;
-			}
-			if(this._scrollview.get_hscrollPos() == this._inertia.target.x) {
-				this._inertia.amplitude.x = 0;
-			}
-			if(this._scrollview.get_vscrollPos() == this._inertia.target.y) {
-				this._inertia.amplitude.y = 0;
-			}
-			haxe_ui_Toolkit.callLater($bind(this,this.inertialScroll));
-		} else {
-			this._scrollview.removeClass(":down");
-			this.dispatch(new haxe_ui_events_ScrollEvent("scrollstop"));
-			haxe_ui_Toolkit.callLater($bind(this,this.resumeContainerEvents));
-		}
-	}
-	,inertialScroll: function() {
-		var elapsed = (new Date().getTime() / 1000 - this._inertia.timestamp) * 1000;
-		var finishedX = false;
-		if(this._inertia.amplitude.x != 0) {
-			var deltaX = -this._inertia.amplitude.x * Math.exp(-elapsed / 325);
-			if(deltaX > 0.5 || deltaX < -0.5) {
-				var oldPos = this._scrollview.get_hscrollPos();
-				var newPos = 0;
-				if(this._inertia.direction.x == 0) {
-					newPos = this._inertia.target.x - deltaX;
-				} else {
-					newPos = this._inertia.target.x + deltaX;
-				}
-				if(newPos < 0) {
-					newPos = 0;
-				} else if(newPos > this._scrollview.get_hscrollMax()) {
-					newPos = this._scrollview.get_hscrollMax();
-				}
-				this._scrollview.set_hscrollPos(newPos);
-				finishedX = newPos == oldPos || newPos == 0 || newPos == this._scrollview.get_hscrollMax();
-			} else {
-				finishedX = true;
-			}
-		} else {
-			finishedX = true;
-		}
-		var finishedY = false;
-		if(this._inertia.amplitude.y != 0) {
-			var deltaY = -this._inertia.amplitude.y * Math.exp(-elapsed / 325);
-			if(deltaY > 0.5 || deltaY < -0.5) {
-				var oldPos = this._scrollview.get_vscrollPos();
-				var newPos = 0;
-				if(this._inertia.direction.y == 0) {
-					newPos = this._inertia.target.y - deltaY;
-				} else {
-					newPos = this._inertia.target.y + deltaY;
-				}
-				if(newPos < 0) {
-					newPos = 0;
-				} else if(newPos > this._scrollview.get_vscrollMax()) {
-					newPos = this._scrollview.get_vscrollMax();
-				}
-				this._scrollview.set_vscrollPos(newPos);
-				finishedY = newPos == oldPos || newPos == 0 || newPos == this._scrollview.get_vscrollMax();
-			} else {
-				finishedY = true;
-			}
-		} else {
-			finishedY = true;
-		}
-		if(finishedX == true && finishedY == true) {
-			this.dispatch(new haxe_ui_events_ScrollEvent("scrollstop"));
-			haxe_ui_Toolkit.callLater($bind(this,this.resumeContainerEvents));
-		} else {
-			haxe_ui_Toolkit.callLater($bind(this,this.inertialScroll));
-		}
-	}
-	,_fadeTimer: null
-	,onMouseWheel: function(event) {
-		var _gthis = this;
-		var vscroll = this._scrollview.findComponent(null,haxe_ui_components_VerticalScroll,false);
-		if(vscroll != null) {
-			var builder = js_Boot.__cast(this._scrollview._compositeBuilder , haxe_ui_containers_ScrollViewBuilder);
-			if(builder.autoHideScrolls == true && this._fadeTimer == null) {
-				vscroll.fadeIn();
-			}
-			event.cancel();
-			var amount = 50;
-			if(event.delta > 0) {
-				vscroll.set_pos(vscroll.get_pos() - amount);
-			} else if(event.delta < 0) {
-				vscroll.set_pos(vscroll.get_pos() + amount);
-			}
-			if(builder.autoHideScrolls == true) {
-				if(this._fadeTimer != null) {
-					this._fadeTimer.stop();
-					this._fadeTimer = null;
-				}
-				this._fadeTimer = new haxe_ui_util_Timer(300,function() {
-					vscroll.fadeOut();
-					_gthis._fadeTimer.stop();
-					_gthis._fadeTimer = null;
-				});
-			}
-		}
-	}
-	,__class__: haxe_ui_containers_ScrollViewEvents
-});
-var haxe_ui_containers_ListViewEvents = function(listview) {
-	haxe_ui_containers_ScrollViewEvents.call(this,listview);
-	this._listview = listview;
-};
-$hxClasses["haxe.ui.containers.ListViewEvents"] = haxe_ui_containers_ListViewEvents;
-haxe_ui_containers_ListViewEvents.__name__ = "haxe.ui.containers.ListViewEvents";
-haxe_ui_containers_ListViewEvents.__super__ = haxe_ui_containers_ScrollViewEvents;
-haxe_ui_containers_ListViewEvents.prototype = $extend(haxe_ui_containers_ScrollViewEvents.prototype,{
-	_listview: null
-	,register: function() {
-		haxe_ui_containers_ScrollViewEvents.prototype.register.call(this);
-		this.registerEvent("scrollchange",$bind(this,this.onScrollChange));
-		this.registerEvent("rendererCreated",$bind(this,this.onRendererCreated));
-		this.registerEvent("rendererDestroyed",$bind(this,this.onRendererDestroyed));
-	}
-	,unregister: function() {
-		haxe_ui_containers_ScrollViewEvents.prototype.unregister.call(this);
-		this.unregisterEvent("scrollchange",$bind(this,this.onScrollChange));
-		this.unregisterEvent("rendererCreated",$bind(this,this.onRendererCreated));
-		this.unregisterEvent("rendererDestroyed",$bind(this,this.onRendererDestroyed));
-	}
-	,onScrollChange: function(e) {
-		if(this._listview.get_virtual() == true) {
-			var _this = this._listview;
-			if(!(_this._layout == null || _this._layoutLocked == true)) {
-				_this.invalidateComponent("layout",false);
-			}
-		}
-	}
-	,onRendererCreated: function(e) {
-		var instance = js_Boot.__cast(e.data , haxe_ui_core_ItemRenderer);
-		instance.registerEvent("mousedown",$bind(this,this.onRendererMouseDown));
-		instance.registerEvent("click",$bind(this,this.onRendererClick));
-		if(this._listview.get_selectedIndices().indexOf(instance.itemIndex) != -1) {
-			var builder = js_Boot.__cast(this._listview._compositeBuilder , haxe_ui_containers__$ListView_ListViewBuilder);
-			builder.addItemRendererClass(instance,":selected");
-		}
-	}
-	,onRendererDestroyed: function(e) {
-		var instance = js_Boot.__cast(e.data , haxe_ui_core_ItemRenderer);
-		instance.unregisterEvent("mousedown",$bind(this,this.onRendererMouseDown));
-		instance.unregisterEvent("click",$bind(this,this.onRendererClick));
-		if(this._listview.get_selectedIndices().indexOf(instance.itemIndex) != -1) {
-			var builder = js_Boot.__cast(this._listview._compositeBuilder , haxe_ui_containers__$ListView_ListViewBuilder);
-			builder.addItemRendererClass(instance,":selected",false);
-		}
-	}
-	,onRendererMouseDown: function(e) {
-		if(this._listview.get_selectionMode() == "multiple-long-press") {
-			if(this._listview.get_selectedIndices().length == 0) {
-				this.startLongPressSelection(e);
-			}
-		} else if(this._listview.classes.indexOf(":mobile") != -1 == false) {
-			e.target.addClass(":hover");
-		}
-	}
-	,startLongPressSelection: function(e) {
-		var _gthis = this;
-		var timerClick = null;
-		var currentMouseX = e.screenX;
-		var currentMouseY = e.screenY;
-		var renderer = js_Boot.__cast(e.target , haxe_ui_core_ItemRenderer);
-		var __onMouseMove = null;
-		var __onMouseUp = null;
-		var __onMouseClick = null;
-		__onMouseMove = function(_e) {
-			currentMouseX = _e.screenX;
-			currentMouseY = _e.screenY;
-		};
-		__onMouseUp = function(_e) {
-			if(timerClick != null) {
-				timerClick.stop();
-				timerClick = null;
-			}
-			renderer.get_screen().unregisterEvent("mousemove",__onMouseMove);
-			renderer.get_screen().unregisterEvent("mouseup",__onMouseUp);
-		};
-		__onMouseClick = function(_e) {
-			_e.cancel();
-			renderer.unregisterEvent("click",__onMouseClick);
-		};
-		renderer.get_screen().registerEvent("mousemove",__onMouseMove);
-		renderer.get_screen().registerEvent("mouseup",__onMouseUp);
-		timerClick = haxe_Timer.delay(function() {
-			if(timerClick != null) {
-				timerClick = null;
-				var timerClick1;
-				if(renderer.hitTest(currentMouseX,currentMouseY)) {
-					var x1 = e.screenX;
-					var y1 = e.screenY;
-					timerClick1 = Math.sqrt((x1 - currentMouseX) * (x1 - currentMouseX) + (y1 - currentMouseY) * (y1 - currentMouseY)) < 2 * haxe_ui_Toolkit.pixelsPerRem;
-				} else {
-					timerClick1 = false;
-				}
-				if(timerClick1) {
-					_gthis.toggleSelection(renderer);
-					renderer.registerEvent("click",__onMouseClick,1);
-				}
-			}
-		},this._listview.get_longPressSelectionTime());
-	}
-	,onContainerEventsStatusChanged: function() {
-		haxe_ui_containers_ScrollViewEvents.prototype.onContainerEventsStatusChanged.call(this);
-		if(this._containerEventsPaused == true) {
-			this._scrollview.findComponent("listview-contents",haxe_ui_core_Component,true,"css").removeClass(":hover",true,true);
-		} else {
-			var tmp = this._lastMousePos != null;
-		}
-	}
-	,onRendererClick: function(e) {
-		if(this._containerEventsPaused == true) {
-			return;
-		}
-		var components = e.target.findComponentsUnderPoint(e.screenX,e.screenY);
-		var _g = 0;
-		while(_g < components.length) {
-			var component = components[_g];
-			++_g;
-			if(((component) instanceof haxe_ui_core_InteractiveComponent) && (js_Boot.__cast(component , haxe_ui_core_InteractiveComponent)).get_allowInteraction() == true) {
-				return;
-			}
-		}
-		var renderer = js_Boot.__cast(e.target , haxe_ui_core_ItemRenderer);
-		switch(this._listview.get_selectionMode()) {
-		case "disabled":
-			break;
-		case "multiple-click-modifier-key":case "multiple-modifier-key":
-			if(e.ctrlKey == true) {
-				this.toggleSelection(renderer);
-			} else if(e.shiftKey == true) {
-				var selectedIndices = this._listview.get_selectedIndices();
-				var fromIndex = selectedIndices.length > 0 ? selectedIndices[selectedIndices.length - 1] : 0;
-				var toIndex = renderer.itemIndex;
-				if(fromIndex < toIndex) {
-					var _g = 0;
-					while(_g < selectedIndices.length) {
-						var i = selectedIndices[_g];
-						++_g;
-						if(i < fromIndex) {
-							fromIndex = i;
-						}
-					}
-				} else {
-					var tmp = fromIndex;
-					fromIndex = toIndex;
-					toIndex = tmp;
-				}
-				this.selectRange(fromIndex,toIndex);
-			} else if(this._listview.get_selectionMode() == "multiple-click-modifier-key") {
-				this._listview.set_selectedIndex(renderer.itemIndex);
-			}
-			break;
-		case "multiple-long-press":
-			var selectedIndices = this._listview.get_selectedIndices();
-			if(selectedIndices.length > 0) {
-				this.toggleSelection(renderer);
-			}
-			break;
-		case "one-item":
-			this._listview.set_selectedIndex(renderer.itemIndex);
-			break;
-		case "one-item-repeated":
-			this._listview.set_selectedIndices([renderer.itemIndex]);
-			break;
-		default:
-		}
-	}
-	,toggleSelection: function(renderer) {
-		var itemIndex = renderer.itemIndex;
-		var selectedIndices = this._listview.get_selectedIndices().slice();
-		var index = selectedIndices.indexOf(itemIndex);
-		if(index == -1) {
-			selectedIndices.push(itemIndex);
-		} else {
-			selectedIndices.splice(index,1);
-		}
-		this._listview.set_selectedIndices(selectedIndices);
-	}
-	,selectRange: function(fromIndex,toIndex) {
-		var tmp = this._listview;
-		var _g = [];
-		var _g1 = fromIndex;
-		var _g2 = toIndex + 1;
-		while(_g1 < _g2) {
-			var i = _g1++;
-			_g.push(i);
-		}
-		tmp.set_selectedIndices(_g);
-	}
-	,__class__: haxe_ui_containers_ListViewEvents
-});
-var haxe_ui_containers_ScrollViewBuilder = function(scrollview) {
-	this.autoHideScrolls = false;
-	haxe_ui_core_CompositeBuilder.call(this,scrollview);
-	this._scrollview = scrollview;
-};
-$hxClasses["haxe.ui.containers.ScrollViewBuilder"] = haxe_ui_containers_ScrollViewBuilder;
-haxe_ui_containers_ScrollViewBuilder.__name__ = "haxe.ui.containers.ScrollViewBuilder";
-haxe_ui_containers_ScrollViewBuilder.__super__ = haxe_ui_core_CompositeBuilder;
-haxe_ui_containers_ScrollViewBuilder.prototype = $extend(haxe_ui_core_CompositeBuilder.prototype,{
-	_scrollview: null
-	,_contents: null
-	,_contentsLayoutName: null
-	,create: function() {
-		var contentLayoutName = this._scrollview.get_contentLayoutName();
-		if(contentLayoutName == null) {
-			contentLayoutName = "vertical";
-		}
-		this.createContentContainer(contentLayoutName);
-	}
-	,destroy: function() {
-	}
-	,get_numComponents: function() {
-		return this._contents.get_numComponents();
-	}
-	,addComponent: function(child) {
-		if(((child) instanceof haxe_ui_components_HorizontalScroll) == false && ((child) instanceof haxe_ui_components_VerticalScroll) == false && child.classes.indexOf("scrollview-contents") != -1 == false) {
-			return this._contents.addComponent(child);
-		}
-		return null;
-	}
-	,addComponentAt: function(child,index) {
-		if(((child) instanceof haxe_ui_components_HorizontalScroll) == false && ((child) instanceof haxe_ui_components_VerticalScroll) == false && child.classes.indexOf("scrollview-contents") != -1 == false) {
-			return this._contents.addComponentAt(child,index);
-		}
-		return null;
-	}
-	,removeComponent: function(child,dispose,invalidate) {
-		if(invalidate == null) {
-			invalidate = true;
-		}
-		if(dispose == null) {
-			dispose = true;
-		}
-		if(((child) instanceof haxe_ui_components_HorizontalScroll) == false && ((child) instanceof haxe_ui_components_VerticalScroll) == false && child.classes.indexOf("scrollview-contents") != -1 == false) {
-			return this._contents.removeComponent(child,dispose,invalidate);
-		}
-		return null;
-	}
-	,removeComponentAt: function(index,dispose,invalidate) {
-		if(invalidate == null) {
-			invalidate = true;
-		}
-		if(dispose == null) {
-			dispose = true;
-		}
-		return this._contents.removeComponentAt(index,dispose,invalidate);
-	}
-	,getComponentIndex: function(child) {
-		return this._contents.getComponentIndex(child);
-	}
-	,setComponentIndex: function(child,index) {
-		if(((child) instanceof haxe_ui_components_HorizontalScroll) == false && ((child) instanceof haxe_ui_components_VerticalScroll) == false && child.classes.indexOf("scrollview-contents") != -1 == false) {
-			return this._contents.setComponentIndex(child,index);
-		}
-		return null;
-	}
-	,getComponentAt: function(index) {
-		return this._contents.getComponentAt(index);
-	}
-	,createContentContainer: function(layoutName) {
-		if(this._contents == null) {
-			this._contents = new haxe_ui_containers_Box();
-			this._contents.addClass("scrollview-contents");
-			this._contents.set_id("scrollview-contents");
-			this._contents.set_layout(haxe_ui_layouts_LayoutFactory.createFromName(layoutName));
-			this._component.addComponent(this._contents);
-			this._contentsLayoutName = layoutName;
-		}
-	}
-	,horizontalConstraintModifier: function() {
-		return 0;
-	}
-	,verticalConstraintModifier: function() {
-		return 0;
-	}
-	,checkScrolls: function() {
-		if(this._component.get_isNativeScroller() == true) {
-			return;
-		}
-		var usableSize = this._component.get_layout().get_usableSize();
-		if(this.get_virtualHorizontal() == false && usableSize.width > 0) {
-			var horizontalConstraint = this._contents;
-			var hscroll = this._component.findComponent(null,haxe_ui_components_HorizontalScroll,false);
-			var vcw = horizontalConstraint.get_width() + this.horizontalConstraintModifier();
-			if(vcw > usableSize.width) {
-				if(hscroll == null) {
-					hscroll = this.createHScroll();
-				}
-				hscroll.set_max(vcw - usableSize.width);
-				hscroll.set_pageSize(usableSize.width / vcw * hscroll.get_max());
-				hscroll.syncComponentValidation();
-			} else if(hscroll != null) {
-				this.destroyHScroll();
-			}
-		}
-		if(this.get_virtualVertical() == false && usableSize.height > 0) {
-			var verticalConstraint = this._contents;
-			var vscroll = this._component.findComponent(null,haxe_ui_components_VerticalScroll,false);
-			var vch = verticalConstraint.get_height() + this.verticalConstraintModifier();
-			if(vch > usableSize.height) {
-				if(vscroll == null) {
-					vscroll = this.createVScroll();
-				}
-				vscroll.set_max(vch - usableSize.height);
-				vscroll.set_pageSize(usableSize.height / vch * vscroll.get_max());
-				vscroll.syncComponentValidation();
-			} else if(vscroll != null) {
-				this.destroyVScroll();
-			}
-		}
-	}
-	,createHScroll: function() {
-		if(this._component.get_isNativeScroller() == true) {
-			return null;
-		}
-		var usableSize = this._component.get_layout().get_usableSize();
-		var horizontalConstraint = this._contents;
-		var hscroll = this._component.findComponent(null,haxe_ui_components_HorizontalScroll,false);
-		var vcw = horizontalConstraint.get_width() + this.horizontalConstraintModifier();
-		if(usableSize.width <= 0) {
-			return hscroll;
-		}
-		if(vcw > usableSize.width && hscroll == null) {
-			var builder = js_Boot.__cast(this._scrollview._compositeBuilder , haxe_ui_containers_ScrollViewBuilder);
-			hscroll = new haxe_ui_components_HorizontalScroll();
-			hscroll.set_includeInLayout(!builder.autoHideScrolls);
-			hscroll.set_hidden(builder.autoHideScrolls);
-			hscroll.set_percentWidth(100);
-			hscroll.set_allowFocus(false);
-			hscroll.set_id("scrollview-hscroll");
-			this._component.addComponent(hscroll);
-			this._component.registerInternalEvents(null,true);
-		}
-		return hscroll;
-	}
-	,createVScroll: function() {
-		if(this._component.get_isNativeScroller() == true) {
-			return null;
-		}
-		var usableSize = this._component.get_layout().get_usableSize();
-		var verticalConstraint = this._contents;
-		var vscroll = this._component.findComponent(null,haxe_ui_components_VerticalScroll,false);
-		var vch = verticalConstraint.get_height() + this.verticalConstraintModifier();
-		if(usableSize.height <= 0) {
-			return vscroll;
-		}
-		if(vch > usableSize.height && vscroll == null) {
-			var builder = js_Boot.__cast(this._scrollview._compositeBuilder , haxe_ui_containers_ScrollViewBuilder);
-			vscroll = new haxe_ui_components_VerticalScroll();
-			vscroll.set_includeInLayout(!builder.autoHideScrolls);
-			vscroll.set_hidden(builder.autoHideScrolls);
-			vscroll.set_percentHeight(100);
-			vscroll.set_allowFocus(false);
-			vscroll.set_id("scrollview-vscroll");
-			this._component.addComponent(vscroll);
-			this._component.registerInternalEvents(null,true);
-		}
-		return vscroll;
-	}
-	,destroyHScroll: function() {
-		var hscroll = this._component.findComponent(null,haxe_ui_components_HorizontalScroll,false);
-		if(hscroll != null) {
-			this._component.removeComponent(hscroll);
-		}
-	}
-	,destroyVScroll: function() {
-		var vscroll = this._component.findComponent(null,haxe_ui_components_VerticalScroll,false);
-		if(vscroll != null) {
-			this._component.removeComponent(vscroll);
-		}
-	}
-	,updateScrollRect: function() {
-		if(this._contents == null) {
-			return;
-		}
-		var usableSize = this._component.get_layout().get_usableSize();
-		var clipCX = usableSize.width - this.horizontalConstraintModifier();
-		if(clipCX > this._contents.get_width()) {
-			clipCX = this._contents.get_width() + this.horizontalConstraintModifier();
-		}
-		var clipCY = usableSize.height - this.verticalConstraintModifier();
-		if(clipCY > this._contents.get_height()) {
-			clipCY = this._contents.get_height() + this.verticalConstraintModifier();
-		}
-		var xpos = 0;
-		var ypos = 0;
-		if(this.get_virtualHorizontal() == false) {
-			var hscroll = this._component.findComponent(null,haxe_ui_components_HorizontalScroll,false);
-			if(hscroll != null) {
-				xpos = hscroll.get_pos();
-			}
-		} else if(this._contents.get_componentClipRect() != null) {
-			clipCX = this._contents.get_componentClipRect().width;
-		}
-		if(this.get_virtualVertical() == false) {
-			var vscroll = this._component.findComponent(null,haxe_ui_components_VerticalScroll,false);
-			if(vscroll != null) {
-				ypos = vscroll.get_pos();
-			}
-		} else if(this._contents.get_componentClipRect() != null) {
-			clipCY = this._contents.get_componentClipRect().height;
-		}
-		var rc = new haxe_ui_geom_Rectangle(xpos + 1,ypos,Math.round(clipCX),Math.round(clipCY));
-		this._contents.set_componentClipRect(rc);
-	}
-	,virtualHorizontal: null
-	,get_virtualHorizontal: function() {
-		return this._scrollview.get_virtual();
-	}
-	,virtualVertical: null
-	,get_virtualVertical: function() {
-		return this._scrollview.get_virtual();
-	}
-	,onVirtualChanged: function() {
-	}
-	,autoHideScrolls: null
-	,applyStyle: function(style) {
-		haxe_ui_core_CompositeBuilder.prototype.applyStyle.call(this,style);
-		if(style.mode != null && style.mode == "mobile") {
-			this.autoHideScrolls = true;
-		} else {
-			this.autoHideScrolls = false;
-		}
-		if(style.contentWidth != null && style.contentWidth != this._scrollview.get_contentWidth()) {
-			this._scrollview.set_contentWidth(style.contentWidth);
-		} else if(style.contentWidthPercent != null && style.contentWidthPercent != this._scrollview.get_percentContentWidth()) {
-			this._scrollview.set_percentContentWidth(style.contentWidthPercent);
-		}
-		if(style.contentHeight != null && style.contentHeight != this._scrollview.get_contentHeight()) {
-			this._scrollview.set_contentHeight(style.contentHeight);
-		} else if(style.contentHeightPercent != null && style.contentHeightPercent != this._scrollview.get_percentContentHeight()) {
-			this._scrollview.set_percentContentHeight(style.contentHeightPercent);
-		}
-	}
-	,__class__: haxe_ui_containers_ScrollViewBuilder
-	,__properties__: $extend(haxe_ui_core_CompositeBuilder.prototype.__properties__,{get_virtualVertical:"get_virtualVertical",get_virtualHorizontal:"get_virtualHorizontal"})
-});
-var haxe_ui_containers__$ListView_ListViewBuilder = function(listview) {
-	haxe_ui_containers_ScrollViewBuilder.call(this,listview);
-	this._listview = listview;
-};
-$hxClasses["haxe.ui.containers._ListView.ListViewBuilder"] = haxe_ui_containers__$ListView_ListViewBuilder;
-haxe_ui_containers__$ListView_ListViewBuilder.__name__ = "haxe.ui.containers._ListView.ListViewBuilder";
-haxe_ui_containers__$ListView_ListViewBuilder.__super__ = haxe_ui_containers_ScrollViewBuilder;
-haxe_ui_containers__$ListView_ListViewBuilder.prototype = $extend(haxe_ui_containers_ScrollViewBuilder.prototype,{
-	_listview: null
-	,create: function() {
-		this.createContentContainer(this._listview.get_virtual() ? "absolute" : "vertical");
-	}
-	,createContentContainer: function(layoutName) {
-		if(this._contents == null) {
-			haxe_ui_containers_ScrollViewBuilder.prototype.createContentContainer.call(this,layoutName);
-			this._contents.addClass("listview-contents");
-		}
-	}
-	,addComponent: function(child) {
-		var r = null;
-		if(((child) instanceof haxe_ui_core_ItemRenderer) && (this._listview.get_itemRenderer() == null && this._listview.get_itemRendererClass() == null)) {
-			this._listview.set_itemRenderer(js_Boot.__cast(child , haxe_ui_core_ItemRenderer));
-			this._listview.get_itemRenderer().ready();
-			this._listview.get_itemRenderer().handleVisibility(false);
-			r = child;
-		} else {
-			r = haxe_ui_containers_ScrollViewBuilder.prototype.addComponent.call(this,child);
-		}
-		return r;
-	}
-	,onVirtualChanged: function() {
-		this._contents.set_layoutName(this._listview.get_virtual() ? "absolute" : "vertical");
-	}
-	,addItemRendererClass: function(child,className,add) {
-		if(add == null) {
-			add = true;
-		}
-		var _gthis = this;
-		child.walkComponents(function(c) {
-			if(((c) instanceof haxe_ui_core_ItemRenderer)) {
-				if(add == true) {
-					c.addClass(className);
-					haxe_ui_Toolkit.callLater(function() {
-						_gthis.ensureVisible(js_Boot.__cast(c , haxe_ui_core_ItemRenderer));
-					});
-				} else {
-					c.removeClass(className);
-				}
-			} else {
-				c.invalidateComponent("style",false);
-			}
-			return true;
-		});
-	}
-	,ensureVisible: function(itemToEnsure) {
-		if(itemToEnsure != null && this._listview.get_virtual() == false) {
-			var vscroll = this._listview.findComponent(null,haxe_ui_components_VerticalScroll);
-			if(vscroll != null) {
-				var vpos = vscroll.get_pos();
-				var contents = this._listview.findComponent("listview-contents",null,null,"css");
-				if(itemToEnsure.get_top() + itemToEnsure.get_height() > vpos + contents.get_componentClipRect().height) {
-					vscroll.set_pos(itemToEnsure.get_top() + itemToEnsure.get_height() - contents.get_componentClipRect().height);
-				} else if(itemToEnsure.get_top() < vpos) {
-					vscroll.set_pos(itemToEnsure.get_top());
-				}
-			}
-		}
-	}
-	,ensureVirtualItemVisible: function(index) {
-		var vscroll = this._listview.findComponent(null,haxe_ui_components_VerticalScroll);
-		if(vscroll != null) {
-			var layout = js_Boot.__cast(this._listview.get_layout() , haxe_ui_layouts_VerticalVirtualLayout);
-			var itemHeight = layout.get_itemHeight();
-			var itemTop = index * itemHeight;
-			var vpos = vscroll.get_pos();
-			var contents = this._listview.findComponent("listview-contents",null,null,"css");
-			if(itemTop + itemHeight > vpos + contents.get_componentClipRect().height) {
-				vscroll.set_pos(itemTop + itemHeight - contents.get_componentClipRect().height);
-			} else if(itemTop < vpos) {
-				vscroll.set_pos(itemTop);
-			}
-		}
-	}
-	,__class__: haxe_ui_containers__$ListView_ListViewBuilder
-});
-var haxe_ui_containers__$ListView_DataSourceBehaviour = function(component) {
-	this._firstPass = true;
-	haxe_ui_behaviours_DataBehaviour.call(this,component);
-};
-$hxClasses["haxe.ui.containers._ListView.DataSourceBehaviour"] = haxe_ui_containers__$ListView_DataSourceBehaviour;
-haxe_ui_containers__$ListView_DataSourceBehaviour.__name__ = "haxe.ui.containers._ListView.DataSourceBehaviour";
-haxe_ui_containers__$ListView_DataSourceBehaviour.__super__ = haxe_ui_behaviours_DataBehaviour;
-haxe_ui_containers__$ListView_DataSourceBehaviour.prototype = $extend(haxe_ui_behaviours_DataBehaviour.prototype,{
-	_firstPass: null
-	,set: function(value) {
-		var _gthis = this;
-		haxe_ui_behaviours_DataBehaviour.prototype.set.call(this,value);
-		var dataSource = haxe_ui_util_Variant.toDataSource(this._value);
-		if(dataSource != null) {
-			dataSource.onChange = function() {
-				var _this = _gthis._component;
-				if(!(_this._layout == null || _this._layoutLocked == true)) {
-					_this.invalidateComponent("layout",false);
-				}
-				if(_gthis._firstPass == true) {
-					_gthis._component.syncComponentValidation();
-					_gthis._firstPass = false;
-					var _this = _gthis._component;
-					if(!(_this._layout == null || _this._layoutLocked == true)) {
-						_this.invalidateComponent("layout",false);
-					}
-				}
-			};
-			var _this = this._component;
-			if(!(_this._layout == null || _this._layoutLocked == true)) {
-				_this.invalidateComponent("layout",false);
-			}
-		} else {
-			var _this = this._component;
-			if(!(_this._layout == null || _this._layoutLocked == true)) {
-				_this.invalidateComponent("layout",false);
-			}
-		}
-	}
-	,get: function() {
-		if(this._value == null || haxe_ui_util_Variant.get_isNull(this._value)) {
-			this._value = haxe_ui_util_Variant.fromDataSource(new haxe_ui_data_ArrayDataSource());
-			this.set(this._value);
-		}
-		return this._value;
-	}
-	,__class__: haxe_ui_containers__$ListView_DataSourceBehaviour
-});
-var haxe_ui_containers__$ListView_SelectedIndexBehaviour = function(component) {
-	haxe_ui_behaviours_Behaviour.call(this,component);
-};
-$hxClasses["haxe.ui.containers._ListView.SelectedIndexBehaviour"] = haxe_ui_containers__$ListView_SelectedIndexBehaviour;
-haxe_ui_containers__$ListView_SelectedIndexBehaviour.__name__ = "haxe.ui.containers._ListView.SelectedIndexBehaviour";
-haxe_ui_containers__$ListView_SelectedIndexBehaviour.__super__ = haxe_ui_behaviours_Behaviour;
-haxe_ui_containers__$ListView_SelectedIndexBehaviour.prototype = $extend(haxe_ui_behaviours_Behaviour.prototype,{
-	get: function() {
-		var listView = js_Boot.__cast(this._component , haxe_ui_containers_ListView);
-		var selectedIndices = listView.get_selectedIndices();
-		if(selectedIndices != null && selectedIndices.length > 0) {
-			return haxe_ui_util_Variant.fromInt(selectedIndices[selectedIndices.length - 1]);
-		} else {
-			return haxe_ui_util_Variant.fromInt(-1);
-		}
-	}
-	,set: function(value) {
-		var listView = js_Boot.__cast(this._component , haxe_ui_containers_ListView);
-		listView.set_selectedIndices(haxe_ui_util_Variant.neq(value,haxe_ui_util_Variant.fromInt(-1)) ? [haxe_ui_util_Variant.toInt(value)] : null);
-	}
-	,__class__: haxe_ui_containers__$ListView_SelectedIndexBehaviour
-});
-var haxe_ui_containers__$ListView_SelectedItemBehaviour = function(component) {
-	haxe_ui_behaviours_Behaviour.call(this,component);
-};
-$hxClasses["haxe.ui.containers._ListView.SelectedItemBehaviour"] = haxe_ui_containers__$ListView_SelectedItemBehaviour;
-haxe_ui_containers__$ListView_SelectedItemBehaviour.__name__ = "haxe.ui.containers._ListView.SelectedItemBehaviour";
-haxe_ui_containers__$ListView_SelectedItemBehaviour.__super__ = haxe_ui_behaviours_Behaviour;
-haxe_ui_containers__$ListView_SelectedItemBehaviour.prototype = $extend(haxe_ui_behaviours_Behaviour.prototype,{
-	getDynamic: function() {
-		var listView = js_Boot.__cast(this._component , haxe_ui_containers_ListView);
-		var selectedIndices = listView.get_selectedIndices();
-		if(selectedIndices.length > 0) {
-			return listView.get_dataSource().get(selectedIndices[selectedIndices.length - 1]);
-		} else {
-			return null;
-		}
-	}
-	,set: function(value) {
-		var listView = js_Boot.__cast(this._component , haxe_ui_containers_ListView);
-		var index = listView.get_dataSource().indexOf(value);
-		if(index != -1 && listView.get_selectedIndices().indexOf(index) == -1) {
-			listView.set_selectedIndices([index]);
-		}
-	}
-	,__class__: haxe_ui_containers__$ListView_SelectedItemBehaviour
-});
-var haxe_ui_containers__$ListView_SelectedIndicesBehaviour = function(component) {
-	haxe_ui_behaviours_DataBehaviour.call(this,component);
-};
-$hxClasses["haxe.ui.containers._ListView.SelectedIndicesBehaviour"] = haxe_ui_containers__$ListView_SelectedIndicesBehaviour;
-haxe_ui_containers__$ListView_SelectedIndicesBehaviour.__name__ = "haxe.ui.containers._ListView.SelectedIndicesBehaviour";
-haxe_ui_containers__$ListView_SelectedIndicesBehaviour.__super__ = haxe_ui_behaviours_DataBehaviour;
-haxe_ui_containers__$ListView_SelectedIndicesBehaviour.prototype = $extend(haxe_ui_behaviours_DataBehaviour.prototype,{
-	get: function() {
-		if(haxe_ui_util_Variant.get_isNull(this._value)) {
-			return haxe_ui_util_Variant.fromArray([]);
-		} else {
-			return this._value;
-		}
-	}
-	,validateData: function() {
-		var listView = js_Boot.__cast(this._component , haxe_ui_containers_ListView);
-		var selectedIndices = listView.get_selectedIndices();
-		var contents = this._component.findComponent("scrollview-contents",null,false,"css");
-		var builder = js_Boot.__cast(this._component._compositeBuilder , haxe_ui_containers__$ListView_ListViewBuilder);
-		var _g = 0;
-		var _g1 = contents._children == null ? [] : contents._children;
-		while(_g < _g1.length) {
-			var child = _g1[_g];
-			++_g;
-			if(selectedIndices.indexOf((js_Boot.__cast(child , haxe_ui_core_ItemRenderer)).itemIndex) != -1) {
-				builder.addItemRendererClass(child,":selected");
-			} else {
-				builder.addItemRendererClass(child,":selected",false);
-			}
-		}
-		if(listView.get_virtual() == true) {
-			var _g = 0;
-			while(_g < selectedIndices.length) {
-				var i = selectedIndices[_g];
-				++_g;
-				builder.ensureVirtualItemVisible(i);
-			}
-		}
-		if(listView.get_selectedIndex() != -1 && listView.get_selectedIndices().length != 0) {
-			this._component.dispatch(new haxe_ui_events_UIEvent("change"));
-		}
-	}
-	,__class__: haxe_ui_containers__$ListView_SelectedIndicesBehaviour
-});
-var haxe_ui_containers__$ListView_SelectedItemsBehaviour = function(component) {
-	haxe_ui_behaviours_Behaviour.call(this,component);
-};
-$hxClasses["haxe.ui.containers._ListView.SelectedItemsBehaviour"] = haxe_ui_containers__$ListView_SelectedItemsBehaviour;
-haxe_ui_containers__$ListView_SelectedItemsBehaviour.__name__ = "haxe.ui.containers._ListView.SelectedItemsBehaviour";
-haxe_ui_containers__$ListView_SelectedItemsBehaviour.__super__ = haxe_ui_behaviours_Behaviour;
-haxe_ui_containers__$ListView_SelectedItemsBehaviour.prototype = $extend(haxe_ui_behaviours_Behaviour.prototype,{
-	get: function() {
-		var listView = js_Boot.__cast(this._component , haxe_ui_containers_ListView);
-		var selectedIndices = listView.get_selectedIndices();
-		if(selectedIndices != null && selectedIndices.length > 0) {
-			var selectedItems = [];
-			var _g = 0;
-			while(_g < selectedIndices.length) {
-				var i = selectedIndices[_g];
-				++_g;
-				if(i < 0 || i >= listView.get_dataSource().get_size()) {
-					continue;
-				}
-				var data = listView.get_dataSource().get(i);
-				selectedItems.push(data);
-			}
-			return haxe_ui_util_Variant.fromArray(selectedItems);
-		} else {
-			return haxe_ui_util_Variant.fromArray([]);
-		}
-	}
-	,set: function(value) {
-		var listView = js_Boot.__cast(this._component , haxe_ui_containers_ListView);
-		var selectedItems = haxe_ui_util_Variant.toArray(value);
-		if(selectedItems != null && selectedItems.length > 0) {
-			var selectedIndices = [];
-			var index;
-			var _g = 0;
-			while(_g < selectedItems.length) {
-				var item = selectedItems[_g];
-				++_g;
-				index = listView.get_dataSource().indexOf(item);
-				if(index != -1) {
-					selectedIndices.push(index);
-				}
-			}
-			listView.set_selectedIndices(selectedIndices);
-		} else {
-			listView.set_selectedIndices([]);
-		}
-	}
-	,__class__: haxe_ui_containers__$ListView_SelectedItemsBehaviour
-});
-var haxe_ui_containers__$ListView_SelectionModeBehaviour = function(component) {
-	haxe_ui_behaviours_DataBehaviour.call(this,component);
-};
-$hxClasses["haxe.ui.containers._ListView.SelectionModeBehaviour"] = haxe_ui_containers__$ListView_SelectionModeBehaviour;
-haxe_ui_containers__$ListView_SelectionModeBehaviour.__name__ = "haxe.ui.containers._ListView.SelectionModeBehaviour";
-haxe_ui_containers__$ListView_SelectionModeBehaviour.__super__ = haxe_ui_behaviours_DataBehaviour;
-haxe_ui_containers__$ListView_SelectionModeBehaviour.prototype = $extend(haxe_ui_behaviours_DataBehaviour.prototype,{
-	validateData: function() {
-		var listView = js_Boot.__cast(this._component , haxe_ui_containers_ListView);
-		var selectedIndices = listView.get_selectedIndices();
-		if(selectedIndices.length == 0) {
-			return;
-		}
-		var selectionMode = haxe_ui_util_Variant.toString(this._value);
-		switch(selectionMode) {
-		case "disabled":
-			listView.set_selectedIndices(null);
-			break;
-		case "one-item":
-			if(selectedIndices.length > 1) {
-				listView.set_selectedIndices([selectedIndices[0]]);
-			}
-			break;
-		default:
-		}
-	}
-	,__class__: haxe_ui_containers__$ListView_SelectionModeBehaviour
-});
-var haxe_ui_containers__$ScrollView_Virtual = function(component) {
-	haxe_ui_behaviours_DefaultBehaviour.call(this,component);
-};
-$hxClasses["haxe.ui.containers._ScrollView.Virtual"] = haxe_ui_containers__$ScrollView_Virtual;
-haxe_ui_containers__$ScrollView_Virtual.__name__ = "haxe.ui.containers._ScrollView.Virtual";
-haxe_ui_containers__$ScrollView_Virtual.__super__ = haxe_ui_behaviours_DefaultBehaviour;
-haxe_ui_containers__$ScrollView_Virtual.prototype = $extend(haxe_ui_behaviours_DefaultBehaviour.prototype,{
-	set: function(value) {
-		haxe_ui_behaviours_DefaultBehaviour.prototype.set.call(this,value);
-		if(this._component._compositeBuilder != null) {
-			(js_Boot.__cast(this._component._compositeBuilder , haxe_ui_containers_ScrollViewBuilder)).onVirtualChanged();
-		}
-	}
-	,__class__: haxe_ui_containers__$ScrollView_Virtual
-});
-var haxe_ui_containers__$ScrollView_ContentLayoutName = function(component) {
-	haxe_ui_behaviours_DefaultBehaviour.call(this,component);
-};
-$hxClasses["haxe.ui.containers._ScrollView.ContentLayoutName"] = haxe_ui_containers__$ScrollView_ContentLayoutName;
-haxe_ui_containers__$ScrollView_ContentLayoutName.__name__ = "haxe.ui.containers._ScrollView.ContentLayoutName";
-haxe_ui_containers__$ScrollView_ContentLayoutName.__super__ = haxe_ui_behaviours_DefaultBehaviour;
-haxe_ui_containers__$ScrollView_ContentLayoutName.prototype = $extend(haxe_ui_behaviours_DefaultBehaviour.prototype,{
-	set: function(value) {
-		haxe_ui_behaviours_DefaultBehaviour.prototype.set.call(this,value);
-		var builder = js_Boot.__cast(this._component._compositeBuilder , haxe_ui_containers_ScrollViewBuilder);
-		if(builder != null && haxe_ui_util_Variant.fromString(builder._contentsLayoutName) != value) {
-			builder._contentsLayoutName = haxe_ui_util_Variant.toString(value);
-			builder._contents.set_layout(haxe_ui_layouts_LayoutFactory.createFromName(haxe_ui_util_Variant.toString(value)));
-		}
-	}
-	,__class__: haxe_ui_containers__$ScrollView_ContentLayoutName
-});
-var haxe_ui_containers__$ScrollView_ContentWidth = function(component) {
-	haxe_ui_behaviours_Behaviour.call(this,component);
-};
-$hxClasses["haxe.ui.containers._ScrollView.ContentWidth"] = haxe_ui_containers__$ScrollView_ContentWidth;
-haxe_ui_containers__$ScrollView_ContentWidth.__name__ = "haxe.ui.containers._ScrollView.ContentWidth";
-haxe_ui_containers__$ScrollView_ContentWidth.__super__ = haxe_ui_behaviours_Behaviour;
-haxe_ui_containers__$ScrollView_ContentWidth.prototype = $extend(haxe_ui_behaviours_Behaviour.prototype,{
-	get: function() {
-		var contents = this._component.findComponent("scrollview-contents",null,false,"css");
-		if(contents == null) {
-			return null;
-		}
-		return haxe_ui_util_Variant.fromFloat(contents.get_width());
-	}
-	,set: function(value) {
-		var contents = this._component.findComponent("scrollview-contents",null,false,"css");
-		if(contents != null) {
-			contents.set_percentWidth(null);
-			contents.set_width(haxe_ui_util_Variant.toFloat(value));
-		}
-	}
-	,__class__: haxe_ui_containers__$ScrollView_ContentWidth
-});
-var haxe_ui_containers__$ScrollView_PercentContentWidth = function(component) {
-	haxe_ui_behaviours_Behaviour.call(this,component);
-};
-$hxClasses["haxe.ui.containers._ScrollView.PercentContentWidth"] = haxe_ui_containers__$ScrollView_PercentContentWidth;
-haxe_ui_containers__$ScrollView_PercentContentWidth.__name__ = "haxe.ui.containers._ScrollView.PercentContentWidth";
-haxe_ui_containers__$ScrollView_PercentContentWidth.__super__ = haxe_ui_behaviours_Behaviour;
-haxe_ui_containers__$ScrollView_PercentContentWidth.prototype = $extend(haxe_ui_behaviours_Behaviour.prototype,{
-	get: function() {
-		var contents = this._component.findComponent("scrollview-contents",null,false,"css");
-		if(contents == null) {
-			return null;
-		}
-		return haxe_ui_util_Variant.fromFloat(contents.get_percentWidth());
-	}
-	,set: function(value) {
-		var contents = this._component.findComponent("scrollview-contents",null,false,"css");
-		if(contents != null) {
-			contents.set_componentWidth(null);
-			contents.set_percentWidth(haxe_ui_util_Variant.toFloat(value));
-		}
-	}
-	,__class__: haxe_ui_containers__$ScrollView_PercentContentWidth
-});
-var haxe_ui_containers__$ScrollView_ContentHeight = function(component) {
-	haxe_ui_behaviours_Behaviour.call(this,component);
-};
-$hxClasses["haxe.ui.containers._ScrollView.ContentHeight"] = haxe_ui_containers__$ScrollView_ContentHeight;
-haxe_ui_containers__$ScrollView_ContentHeight.__name__ = "haxe.ui.containers._ScrollView.ContentHeight";
-haxe_ui_containers__$ScrollView_ContentHeight.__super__ = haxe_ui_behaviours_Behaviour;
-haxe_ui_containers__$ScrollView_ContentHeight.prototype = $extend(haxe_ui_behaviours_Behaviour.prototype,{
-	get: function() {
-		var contents = this._component.findComponent("scrollview-contents",null,false,"css");
-		if(contents == null) {
-			return null;
-		}
-		return haxe_ui_util_Variant.fromFloat(contents.get_height());
-	}
-	,set: function(value) {
-		var contents = this._component.findComponent("scrollview-contents",null,false,"css");
-		if(contents != null) {
-			contents.set_percentHeight(null);
-			contents.set_height(haxe_ui_util_Variant.toFloat(value));
-		}
-	}
-	,__class__: haxe_ui_containers__$ScrollView_ContentHeight
-});
-var haxe_ui_containers__$ScrollView_PercentContentHeight = function(component) {
-	haxe_ui_behaviours_Behaviour.call(this,component);
-};
-$hxClasses["haxe.ui.containers._ScrollView.PercentContentHeight"] = haxe_ui_containers__$ScrollView_PercentContentHeight;
-haxe_ui_containers__$ScrollView_PercentContentHeight.__name__ = "haxe.ui.containers._ScrollView.PercentContentHeight";
-haxe_ui_containers__$ScrollView_PercentContentHeight.__super__ = haxe_ui_behaviours_Behaviour;
-haxe_ui_containers__$ScrollView_PercentContentHeight.prototype = $extend(haxe_ui_behaviours_Behaviour.prototype,{
-	get: function() {
-		var contents = this._component.findComponent("scrollview-contents",null,false,"css");
-		if(contents == null) {
-			return null;
-		}
-		return haxe_ui_util_Variant.fromFloat(contents.get_percentHeight());
-	}
-	,set: function(value) {
-		var contents = this._component.findComponent("scrollview-contents",null,false,"css");
-		if(contents != null) {
-			contents.set_componentHeight(null);
-			contents.set_percentHeight(haxe_ui_util_Variant.toFloat(value));
-		}
-	}
-	,__class__: haxe_ui_containers__$ScrollView_PercentContentHeight
-});
-var haxe_ui_containers__$ScrollView_HScrollPos = function(scrollview) {
-	haxe_ui_behaviours_DataBehaviour.call(this,scrollview);
-	this._scrollview = scrollview;
-};
-$hxClasses["haxe.ui.containers._ScrollView.HScrollPos"] = haxe_ui_containers__$ScrollView_HScrollPos;
-haxe_ui_containers__$ScrollView_HScrollPos.__name__ = "haxe.ui.containers._ScrollView.HScrollPos";
-haxe_ui_containers__$ScrollView_HScrollPos.__super__ = haxe_ui_behaviours_DataBehaviour;
-haxe_ui_containers__$ScrollView_HScrollPos.prototype = $extend(haxe_ui_behaviours_DataBehaviour.prototype,{
-	_scrollview: null
-	,get: function() {
-		var hscroll = this._scrollview.findComponent(null,haxe_ui_components_HorizontalScroll,false);
-		if(hscroll == null) {
-			return haxe_ui_util_Variant.fromInt(0);
-		}
-		return haxe_ui_util_Variant.fromFloat(hscroll.get_pos());
-	}
-	,validateData: function() {
-		var hscroll = this._scrollview.findComponent(null,haxe_ui_components_HorizontalScroll,false);
-		if(this._scrollview.get_virtual() == true) {
-			if(hscroll == null) {
-				hscroll = (js_Boot.__cast(this._scrollview._compositeBuilder , haxe_ui_containers_ScrollViewBuilder)).createHScroll();
-			}
-			if(hscroll != null) {
-				hscroll.set_pos(haxe_ui_util_Variant.toFloat(this._value));
-			}
-		} else if(hscroll != null) {
-			hscroll.set_pos(haxe_ui_util_Variant.toFloat(this._value));
-		}
-	}
-	,__class__: haxe_ui_containers__$ScrollView_HScrollPos
-});
-var haxe_ui_containers__$ScrollView_VScrollPos = function(scrollview) {
-	haxe_ui_behaviours_DataBehaviour.call(this,scrollview);
-	this._scrollview = scrollview;
-};
-$hxClasses["haxe.ui.containers._ScrollView.VScrollPos"] = haxe_ui_containers__$ScrollView_VScrollPos;
-haxe_ui_containers__$ScrollView_VScrollPos.__name__ = "haxe.ui.containers._ScrollView.VScrollPos";
-haxe_ui_containers__$ScrollView_VScrollPos.__super__ = haxe_ui_behaviours_DataBehaviour;
-haxe_ui_containers__$ScrollView_VScrollPos.prototype = $extend(haxe_ui_behaviours_DataBehaviour.prototype,{
-	_scrollview: null
-	,get: function() {
-		var vscroll = this._scrollview.findComponent(null,haxe_ui_components_VerticalScroll,false);
-		if(vscroll == null) {
-			return haxe_ui_util_Variant.fromInt(0);
-		}
-		return haxe_ui_util_Variant.fromFloat(vscroll.get_pos());
-	}
-	,validateData: function() {
-		var vscroll = this._scrollview.findComponent(null,haxe_ui_components_VerticalScroll,false);
-		if(this._scrollview.get_virtual() == true) {
-			if(vscroll == null) {
-				vscroll = (js_Boot.__cast(this._scrollview._compositeBuilder , haxe_ui_containers_ScrollViewBuilder)).createVScroll();
-			}
-			if(vscroll != null) {
-				vscroll.set_pos(haxe_ui_util_Variant.toFloat(this._value));
-			}
-		} else if(vscroll != null) {
-			vscroll.set_pos(haxe_ui_util_Variant.toFloat(this._value));
-		}
-	}
-	,__class__: haxe_ui_containers__$ScrollView_VScrollPos
-});
-var haxe_ui_containers__$ScrollView_HScrollMax = function(scrollview) {
-	haxe_ui_behaviours_DataBehaviour.call(this,scrollview);
-	this._scrollview = scrollview;
-};
-$hxClasses["haxe.ui.containers._ScrollView.HScrollMax"] = haxe_ui_containers__$ScrollView_HScrollMax;
-haxe_ui_containers__$ScrollView_HScrollMax.__name__ = "haxe.ui.containers._ScrollView.HScrollMax";
-haxe_ui_containers__$ScrollView_HScrollMax.__super__ = haxe_ui_behaviours_DataBehaviour;
-haxe_ui_containers__$ScrollView_HScrollMax.prototype = $extend(haxe_ui_behaviours_DataBehaviour.prototype,{
-	_scrollview: null
-	,get: function() {
-		var hscroll = this._scrollview.findComponent(null,haxe_ui_components_HorizontalScroll,false);
-		if(hscroll == null) {
-			return haxe_ui_util_Variant.fromInt(0);
-		}
-		return haxe_ui_util_Variant.fromFloat(hscroll.get_max());
-	}
-	,validateData: function() {
-		if(this._scrollview.get_virtual() == true) {
-			var hscroll = this._scrollview.findComponent(null,haxe_ui_components_HorizontalScroll,false);
-			if(haxe_ui_util_Variant.gt(this._value,haxe_ui_util_Variant.fromInt(0))) {
-				if(hscroll == null) {
-					hscroll = (js_Boot.__cast(this._scrollview._compositeBuilder , haxe_ui_containers_ScrollViewBuilder)).createHScroll();
-				}
-			} else if(hscroll != null) {
-				(js_Boot.__cast(this._scrollview._compositeBuilder , haxe_ui_containers_ScrollViewBuilder)).destroyHScroll();
-			}
-			if(hscroll != null) {
-				hscroll.set_max(haxe_ui_util_Variant.toFloat(this._value));
-			}
-		}
-	}
-	,__class__: haxe_ui_containers__$ScrollView_HScrollMax
-});
-var haxe_ui_containers__$ScrollView_VScrollMax = function(scrollview) {
-	haxe_ui_behaviours_DataBehaviour.call(this,scrollview);
-	this._scrollview = scrollview;
-};
-$hxClasses["haxe.ui.containers._ScrollView.VScrollMax"] = haxe_ui_containers__$ScrollView_VScrollMax;
-haxe_ui_containers__$ScrollView_VScrollMax.__name__ = "haxe.ui.containers._ScrollView.VScrollMax";
-haxe_ui_containers__$ScrollView_VScrollMax.__super__ = haxe_ui_behaviours_DataBehaviour;
-haxe_ui_containers__$ScrollView_VScrollMax.prototype = $extend(haxe_ui_behaviours_DataBehaviour.prototype,{
-	_scrollview: null
-	,get: function() {
-		var vscroll = this._scrollview.findComponent(null,haxe_ui_components_VerticalScroll,false);
-		if(vscroll == null) {
-			return haxe_ui_util_Variant.fromInt(0);
-		}
-		return haxe_ui_util_Variant.fromFloat(vscroll.get_max());
-	}
-	,validateData: function() {
-		if(this._scrollview.get_virtual() == true) {
-			var vscroll = this._scrollview.findComponent(null,haxe_ui_components_VerticalScroll,false);
-			if(haxe_ui_util_Variant.gt(this._value,haxe_ui_util_Variant.fromInt(0))) {
-				if(vscroll == null) {
-					vscroll = (js_Boot.__cast(this._scrollview._compositeBuilder , haxe_ui_containers_ScrollViewBuilder)).createVScroll();
-				}
-			} else if(vscroll != null) {
-				(js_Boot.__cast(this._scrollview._compositeBuilder , haxe_ui_containers_ScrollViewBuilder)).destroyVScroll();
-			}
-			if(vscroll != null) {
-				vscroll.set_max(haxe_ui_util_Variant.toFloat(this._value));
-			}
-		}
-	}
-	,__class__: haxe_ui_containers__$ScrollView_VScrollMax
-});
-var haxe_ui_containers__$ScrollView_HScrollPageSize = function(scrollview) {
-	haxe_ui_behaviours_DataBehaviour.call(this,scrollview);
-	this._scrollview = scrollview;
-};
-$hxClasses["haxe.ui.containers._ScrollView.HScrollPageSize"] = haxe_ui_containers__$ScrollView_HScrollPageSize;
-haxe_ui_containers__$ScrollView_HScrollPageSize.__name__ = "haxe.ui.containers._ScrollView.HScrollPageSize";
-haxe_ui_containers__$ScrollView_HScrollPageSize.__super__ = haxe_ui_behaviours_DataBehaviour;
-haxe_ui_containers__$ScrollView_HScrollPageSize.prototype = $extend(haxe_ui_behaviours_DataBehaviour.prototype,{
-	_scrollview: null
-	,validateData: function() {
-		if(this._scrollview.get_virtual() == true) {
-			var hscroll = this._scrollview.findComponent(null,haxe_ui_components_HorizontalScroll,false);
-			if(hscroll == null) {
-				hscroll = (js_Boot.__cast(this._scrollview._compositeBuilder , haxe_ui_containers_ScrollViewBuilder)).createHScroll();
-			}
-			if(hscroll != null) {
-				hscroll.set_pageSize(haxe_ui_util_Variant.toFloat(this._value));
-			}
-		}
-	}
-	,__class__: haxe_ui_containers__$ScrollView_HScrollPageSize
-});
-var haxe_ui_containers__$ScrollView_VScrollPageSize = function(scrollview) {
-	haxe_ui_behaviours_DataBehaviour.call(this,scrollview);
-	this._scrollview = scrollview;
-};
-$hxClasses["haxe.ui.containers._ScrollView.VScrollPageSize"] = haxe_ui_containers__$ScrollView_VScrollPageSize;
-haxe_ui_containers__$ScrollView_VScrollPageSize.__name__ = "haxe.ui.containers._ScrollView.VScrollPageSize";
-haxe_ui_containers__$ScrollView_VScrollPageSize.__super__ = haxe_ui_behaviours_DataBehaviour;
-haxe_ui_containers__$ScrollView_VScrollPageSize.prototype = $extend(haxe_ui_behaviours_DataBehaviour.prototype,{
-	_scrollview: null
-	,validateData: function() {
-		if(this._scrollview.get_virtual() == true) {
-			var vscroll = this._scrollview.findComponent(null,haxe_ui_components_VerticalScroll,false);
-			if(vscroll == null) {
-				vscroll = (js_Boot.__cast(this._scrollview._compositeBuilder , haxe_ui_containers_ScrollViewBuilder)).createVScroll();
-			}
-			if(vscroll != null) {
-				vscroll.set_pageSize(haxe_ui_util_Variant.toFloat(this._value));
-			}
-		}
-	}
-	,__class__: haxe_ui_containers__$ScrollView_VScrollPageSize
-});
-var haxe_ui_containers__$ScrollView_ScrollModeBehaviour = function(component) {
-	haxe_ui_behaviours_DataBehaviour.call(this,component);
-};
-$hxClasses["haxe.ui.containers._ScrollView.ScrollModeBehaviour"] = haxe_ui_containers__$ScrollView_ScrollModeBehaviour;
-haxe_ui_containers__$ScrollView_ScrollModeBehaviour.__name__ = "haxe.ui.containers._ScrollView.ScrollModeBehaviour";
-haxe_ui_containers__$ScrollView_ScrollModeBehaviour.__super__ = haxe_ui_behaviours_DataBehaviour;
-haxe_ui_containers__$ScrollView_ScrollModeBehaviour.prototype = $extend(haxe_ui_behaviours_DataBehaviour.prototype,{
-	validateData: function() {
-		this._component.registerInternalEvents(null,true);
-	}
-	,__class__: haxe_ui_containers__$ScrollView_ScrollModeBehaviour
-});
-var haxe_ui_containers__$ScrollView_GetContents = function(component) {
-	haxe_ui_behaviours_DefaultBehaviour.call(this,component);
-};
-$hxClasses["haxe.ui.containers._ScrollView.GetContents"] = haxe_ui_containers__$ScrollView_GetContents;
-haxe_ui_containers__$ScrollView_GetContents.__name__ = "haxe.ui.containers._ScrollView.GetContents";
-haxe_ui_containers__$ScrollView_GetContents.__super__ = haxe_ui_behaviours_DefaultBehaviour;
-haxe_ui_containers__$ScrollView_GetContents.prototype = $extend(haxe_ui_behaviours_DefaultBehaviour.prototype,{
-	get: function() {
-		var contents = this._component.findComponent("scrollview-contents",null,false,"css");
-		return haxe_ui_util_Variant.fromComponent(contents);
-	}
-	,__class__: haxe_ui_containers__$ScrollView_GetContents
-});
 var haxe_ui_containers_VBox = function() {
 	haxe_ui_containers_Box.call(this);
 	this.set_layout(new haxe_ui_layouts_VerticalLayout());
@@ -19675,6 +17982,263 @@ haxe_ui_containers_VBox.prototype = $extend(haxe_ui_containers_Box.prototype,{
 		return new haxe_ui_containers_VBox();
 	}
 	,__class__: haxe_ui_containers_VBox
+});
+var haxe_ui_core_ComponentTextBehaviour = function(component) {
+	haxe_ui_behaviours_DefaultBehaviour.call(this,component);
+};
+$hxClasses["haxe.ui.core.ComponentTextBehaviour"] = haxe_ui_core_ComponentTextBehaviour;
+haxe_ui_core_ComponentTextBehaviour.__name__ = "haxe.ui.core.ComponentTextBehaviour";
+haxe_ui_core_ComponentTextBehaviour.__super__ = haxe_ui_behaviours_DefaultBehaviour;
+haxe_ui_core_ComponentTextBehaviour.prototype = $extend(haxe_ui_behaviours_DefaultBehaviour.prototype,{
+	set: function(value) {
+		if(haxe_ui_util_Variant.eq(value,this._value)) {
+			return;
+		}
+		this._value = value;
+		haxe_ui_behaviours_DefaultBehaviour.prototype.set.call(this,value);
+	}
+	,__class__: haxe_ui_core_ComponentTextBehaviour
+});
+var haxe_ui_core_ComponentDisabledBehaviour = function(component) {
+	haxe_ui_behaviours_DataBehaviour.call(this,component);
+	this._value = haxe_ui_util_Variant.fromBool(false);
+};
+$hxClasses["haxe.ui.core.ComponentDisabledBehaviour"] = haxe_ui_core_ComponentDisabledBehaviour;
+haxe_ui_core_ComponentDisabledBehaviour.__name__ = "haxe.ui.core.ComponentDisabledBehaviour";
+haxe_ui_core_ComponentDisabledBehaviour.__super__ = haxe_ui_behaviours_DataBehaviour;
+haxe_ui_core_ComponentDisabledBehaviour.prototype = $extend(haxe_ui_behaviours_DataBehaviour.prototype,{
+	validateData: function() {
+		if(this._value != null && haxe_ui_util_Variant.get_isNull(this._value) == false) {
+			this._component.disableInteractivity(haxe_ui_util_Variant.toBool(this._value),true,true);
+		}
+	}
+	,__class__: haxe_ui_core_ComponentDisabledBehaviour
+});
+var haxe_ui_core_ComponentValueBehaviour = function(component) {
+	haxe_ui_behaviours_ValueBehaviour.call(this,component);
+};
+$hxClasses["haxe.ui.core.ComponentValueBehaviour"] = haxe_ui_core_ComponentValueBehaviour;
+haxe_ui_core_ComponentValueBehaviour.__name__ = "haxe.ui.core.ComponentValueBehaviour";
+haxe_ui_core_ComponentValueBehaviour.__super__ = haxe_ui_behaviours_ValueBehaviour;
+haxe_ui_core_ComponentValueBehaviour.prototype = $extend(haxe_ui_behaviours_ValueBehaviour.prototype,{
+	set: function(value) {
+		if(haxe_ui_util_Variant.eq(value,this._value)) {
+			return;
+		}
+		this._value = value;
+		this._component.set_text(haxe_ui_util_Variant.toString(value));
+	}
+	,get: function() {
+		return this._value;
+	}
+	,getDynamic: function() {
+		return haxe_ui_util_Variant.toDynamic(this._value);
+	}
+	,__class__: haxe_ui_core_ComponentValueBehaviour
+});
+var haxe_ui_core_ComponentToolTipBehaviour = function(component) {
+	haxe_ui_behaviours_DataBehaviour.call(this,component);
+};
+$hxClasses["haxe.ui.core.ComponentToolTipBehaviour"] = haxe_ui_core_ComponentToolTipBehaviour;
+haxe_ui_core_ComponentToolTipBehaviour.__name__ = "haxe.ui.core.ComponentToolTipBehaviour";
+haxe_ui_core_ComponentToolTipBehaviour.__super__ = haxe_ui_behaviours_DataBehaviour;
+haxe_ui_core_ComponentToolTipBehaviour.prototype = $extend(haxe_ui_behaviours_DataBehaviour.prototype,{
+	validateData: function() {
+		if(this._value == null || haxe_ui_util_Variant.get_isNull(this._value)) {
+			haxe_ui_tooltips_ToolTipManager.get_instance().unregisterTooltip(this._component);
+		} else {
+			haxe_ui_tooltips_ToolTipManager.get_instance().registerTooltip(this._component,{ tipData : haxe_ui_util_Variant.toDynamic(this._value), renderer : this._component.get_tooltipRenderer()});
+		}
+	}
+	,setDynamic: function(value) {
+		if(value == null) {
+			haxe_ui_tooltips_ToolTipManager.get_instance().unregisterTooltip(this._component);
+		} else {
+			haxe_ui_tooltips_ToolTipManager.get_instance().registerTooltip(this._component,{ tipData : value, renderer : this._component.get_tooltipRenderer()});
+		}
+	}
+	,getDynamic: function() {
+		var options = haxe_ui_tooltips_ToolTipManager.get_instance().getTooltipOptions(this._component);
+		if(options == null) {
+			return null;
+		}
+		return options.tipData;
+	}
+	,__class__: haxe_ui_core_ComponentToolTipBehaviour
+});
+var haxe_ui_core_ComponentToolTipRendererBehaviour = function(component) {
+	haxe_ui_behaviours_DataBehaviour.call(this,component);
+};
+$hxClasses["haxe.ui.core.ComponentToolTipRendererBehaviour"] = haxe_ui_core_ComponentToolTipRendererBehaviour;
+haxe_ui_core_ComponentToolTipRendererBehaviour.__name__ = "haxe.ui.core.ComponentToolTipRendererBehaviour";
+haxe_ui_core_ComponentToolTipRendererBehaviour.__super__ = haxe_ui_behaviours_DataBehaviour;
+haxe_ui_core_ComponentToolTipRendererBehaviour.prototype = $extend(haxe_ui_behaviours_DataBehaviour.prototype,{
+	validateData: function() {
+		if(this._value == null || haxe_ui_util_Variant.get_isNull(this._value)) {
+			haxe_ui_tooltips_ToolTipManager.get_instance().updateTooltipRenderer(this._component,null);
+		} else {
+			haxe_ui_tooltips_ToolTipManager.get_instance().updateTooltipRenderer(this._component,haxe_ui_util_Variant.toComponent(this._value));
+		}
+	}
+	,__class__: haxe_ui_core_ComponentToolTipRendererBehaviour
+});
+var haxe_ui_core_IScrollView = function() { };
+$hxClasses["haxe.ui.core.IScrollView"] = haxe_ui_core_IScrollView;
+haxe_ui_core_IScrollView.__name__ = "haxe.ui.core.IScrollView";
+haxe_ui_core_IScrollView.__isInterface__ = true;
+haxe_ui_core_IScrollView.prototype = {
+	ensureVisible: null
+	,__class__: haxe_ui_core_IScrollView
+};
+var haxe_ui_core_ImageDisplay = function() {
+	this._isValidating = false;
+	this._isAllInvalid = false;
+	this._invalidationFlags = new haxe_ds_StringMap();
+	haxe_ui_backend_ImageDisplayImpl.call(this);
+};
+$hxClasses["haxe.ui.core.ImageDisplay"] = haxe_ui_core_ImageDisplay;
+haxe_ui_core_ImageDisplay.__name__ = "haxe.ui.core.ImageDisplay";
+haxe_ui_core_ImageDisplay.__super__ = haxe_ui_backend_ImageDisplayImpl;
+haxe_ui_core_ImageDisplay.prototype = $extend(haxe_ui_backend_ImageDisplayImpl.prototype,{
+	_invalidationFlags: null
+	,_isAllInvalid: null
+	,_isValidating: null
+	,get_left: function() {
+		return this._left;
+	}
+	,set_left: function(value) {
+		if(value == this._left) {
+			return value;
+		}
+		this._left = value;
+		this.invalidateComponent("position");
+		return value;
+	}
+	,get_top: function() {
+		return this._top;
+	}
+	,set_top: function(value) {
+		if(value == this._top) {
+			return value;
+		}
+		this._top = value;
+		this.invalidateComponent("position");
+		return value;
+	}
+	,set_imageWidth: function(value) {
+		if(this._imageWidth == value || value <= 0) {
+			return value;
+		}
+		this._imageWidth = value;
+		this.invalidateComponent("display");
+		return value;
+	}
+	,get_imageWidth: function() {
+		return this._imageWidth;
+	}
+	,set_imageHeight: function(value) {
+		if(this._imageHeight == value || value <= 0) {
+			return value;
+		}
+		this._imageHeight = value;
+		this.invalidateComponent("display");
+		return value;
+	}
+	,get_imageHeight: function() {
+		return this._imageHeight;
+	}
+	,get_imageInfo: function() {
+		return this._imageInfo;
+	}
+	,set_imageInfo: function(value) {
+		if(value == this._imageInfo) {
+			return value;
+		}
+		this._imageInfo = value;
+		this._imageWidth = this._imageInfo.width;
+		this._imageHeight = this._imageInfo.height;
+		this.invalidateComponent("data");
+		this.invalidateComponent("display");
+		return value;
+	}
+	,get_imageClipRect: function() {
+		return this._imageClipRect;
+	}
+	,set_imageClipRect: function(value) {
+		this._imageClipRect = value;
+		this.invalidateComponent("display");
+		return value;
+	}
+	,isComponentInvalid: function(flag) {
+		if(flag == null) {
+			flag = "all";
+		}
+		if(this._isAllInvalid == true) {
+			return true;
+		}
+		if(flag == "all") {
+			var h = this._invalidationFlags.h;
+			var value_h = h;
+			var value_keys = Object.keys(h);
+			var value_length = value_keys.length;
+			var value_current = 0;
+			while(value_current < value_length) {
+				var value = value_h[value_keys[value_current++]];
+				return true;
+			}
+			return false;
+		}
+		return Object.prototype.hasOwnProperty.call(this._invalidationFlags.h,flag);
+	}
+	,invalidateComponent: function(flag) {
+		if(flag == null) {
+			flag = "all";
+		}
+		if(flag == "all") {
+			this._isAllInvalid = true;
+			this.parentComponent.invalidateComponent("imageDisplay");
+		} else if(!Object.prototype.hasOwnProperty.call(this._invalidationFlags.h,flag)) {
+			this._invalidationFlags.h[flag] = true;
+			this.parentComponent.invalidateComponent("imageDisplay");
+		}
+	}
+	,validateComponent: function() {
+		if(this._isValidating == true || this.isComponentInvalid() == false) {
+			return;
+		}
+		this._isValidating = true;
+		this.handleValidate();
+		var h = this._invalidationFlags.h;
+		var flag_h = h;
+		var flag_keys = Object.keys(h);
+		var flag_length = flag_keys.length;
+		var flag_current = 0;
+		while(flag_current < flag_length) {
+			var flag = flag_keys[flag_current++];
+			var _this = this._invalidationFlags;
+			if(Object.prototype.hasOwnProperty.call(_this.h,flag)) {
+				delete(_this.h[flag]);
+			}
+		}
+		this._isAllInvalid = false;
+		this._isValidating = false;
+	}
+	,handleValidate: function() {
+		var dataInvalid = this.isComponentInvalid("data");
+		var positionInvalid = this.isComponentInvalid("position");
+		var displayInvalid = this.isComponentInvalid("display");
+		if(dataInvalid) {
+			this.validateData();
+		}
+		if(positionInvalid) {
+			this.validatePosition();
+		}
+		if(displayInvalid) {
+			this.validateDisplay();
+		}
+	}
+	,__class__: haxe_ui_core_ImageDisplay
+	,__properties__: {set_imageClipRect:"set_imageClipRect",get_imageClipRect:"get_imageClipRect",set_imageInfo:"set_imageInfo",get_imageInfo:"get_imageInfo",set_imageHeight:"set_imageHeight",get_imageHeight:"get_imageHeight",set_imageWidth:"set_imageWidth",get_imageWidth:"get_imageWidth",set_top:"set_top",get_top:"get_top",set_left:"set_left",get_left:"get_left"}
 });
 var haxe_ui_core_ItemRenderer = function() {
 	this._fieldList = null;
@@ -19906,300 +18470,6 @@ haxe_ui_core_ItemRenderer.prototype = $extend(haxe_ui_containers_Box.prototype,{
 	}
 	,__class__: haxe_ui_core_ItemRenderer
 	,__properties__: $extend(haxe_ui_containers_Box.prototype.__properties__,{set_data:"set_data",get_data:"get_data",set_allowHover:"set_allowHover",get_allowHover:"get_allowHover"})
-});
-var haxe_ui_core_BasicItemRenderer = function() {
-	haxe_ui_core_ItemRenderer.call(this);
-	this.set_percentWidth(100);
-	var hbox = new haxe_ui_containers_HBox();
-	hbox.set_percentWidth(100);
-	var icon = new haxe_ui_components_Image();
-	icon.set_id("icon");
-	icon.addClass("basic-renderer-icon");
-	icon.set_verticalAlign("center");
-	icon.hide();
-	hbox.addComponent(icon);
-	var label = new haxe_ui_components_Label();
-	label.set_id("text");
-	label.addClass("basic-renderer-label");
-	label.set_percentWidth(100);
-	label.set_verticalAlign("center");
-	label.hide();
-	hbox.addComponent(label);
-	this.addComponent(hbox);
-};
-$hxClasses["haxe.ui.core.BasicItemRenderer"] = haxe_ui_core_BasicItemRenderer;
-haxe_ui_core_BasicItemRenderer.__name__ = "haxe.ui.core.BasicItemRenderer";
-haxe_ui_core_BasicItemRenderer.__super__ = haxe_ui_core_ItemRenderer;
-haxe_ui_core_BasicItemRenderer.prototype = $extend(haxe_ui_core_ItemRenderer.prototype,{
-	registerBehaviours: function() {
-		haxe_ui_core_ItemRenderer.prototype.registerBehaviours.call(this);
-	}
-	,cloneComponent: function() {
-		var c = haxe_ui_core_ItemRenderer.prototype.cloneComponent.call(this);
-		if((this._children == null ? [] : this._children).length != (c._children == null ? [] : c._children).length) {
-			var _g = 0;
-			var _g1 = this._children == null ? [] : this._children;
-			while(_g < _g1.length) {
-				var child = _g1[_g];
-				++_g;
-				c.addComponent(child.cloneComponent());
-			}
-		}
-		return c;
-	}
-	,self: function() {
-		return new haxe_ui_core_BasicItemRenderer();
-	}
-	,__class__: haxe_ui_core_BasicItemRenderer
-});
-var haxe_ui_core_ComponentTextBehaviour = function(component) {
-	haxe_ui_behaviours_DefaultBehaviour.call(this,component);
-};
-$hxClasses["haxe.ui.core.ComponentTextBehaviour"] = haxe_ui_core_ComponentTextBehaviour;
-haxe_ui_core_ComponentTextBehaviour.__name__ = "haxe.ui.core.ComponentTextBehaviour";
-haxe_ui_core_ComponentTextBehaviour.__super__ = haxe_ui_behaviours_DefaultBehaviour;
-haxe_ui_core_ComponentTextBehaviour.prototype = $extend(haxe_ui_behaviours_DefaultBehaviour.prototype,{
-	set: function(value) {
-		if(haxe_ui_util_Variant.eq(value,this._value)) {
-			return;
-		}
-		this._value = value;
-		haxe_ui_behaviours_DefaultBehaviour.prototype.set.call(this,value);
-	}
-	,__class__: haxe_ui_core_ComponentTextBehaviour
-});
-var haxe_ui_core_ComponentDisabledBehaviour = function(component) {
-	haxe_ui_behaviours_DataBehaviour.call(this,component);
-	this._value = haxe_ui_util_Variant.fromBool(false);
-};
-$hxClasses["haxe.ui.core.ComponentDisabledBehaviour"] = haxe_ui_core_ComponentDisabledBehaviour;
-haxe_ui_core_ComponentDisabledBehaviour.__name__ = "haxe.ui.core.ComponentDisabledBehaviour";
-haxe_ui_core_ComponentDisabledBehaviour.__super__ = haxe_ui_behaviours_DataBehaviour;
-haxe_ui_core_ComponentDisabledBehaviour.prototype = $extend(haxe_ui_behaviours_DataBehaviour.prototype,{
-	validateData: function() {
-		if(this._value != null && haxe_ui_util_Variant.get_isNull(this._value) == false) {
-			this._component.disableInteractivity(haxe_ui_util_Variant.toBool(this._value),true,true);
-		}
-	}
-	,__class__: haxe_ui_core_ComponentDisabledBehaviour
-});
-var haxe_ui_core_ComponentValueBehaviour = function(component) {
-	haxe_ui_behaviours_ValueBehaviour.call(this,component);
-};
-$hxClasses["haxe.ui.core.ComponentValueBehaviour"] = haxe_ui_core_ComponentValueBehaviour;
-haxe_ui_core_ComponentValueBehaviour.__name__ = "haxe.ui.core.ComponentValueBehaviour";
-haxe_ui_core_ComponentValueBehaviour.__super__ = haxe_ui_behaviours_ValueBehaviour;
-haxe_ui_core_ComponentValueBehaviour.prototype = $extend(haxe_ui_behaviours_ValueBehaviour.prototype,{
-	set: function(value) {
-		if(haxe_ui_util_Variant.eq(value,this._value)) {
-			return;
-		}
-		this._value = value;
-		this._component.set_text(haxe_ui_util_Variant.toString(value));
-	}
-	,get: function() {
-		return this._value;
-	}
-	,getDynamic: function() {
-		return haxe_ui_util_Variant.toDynamic(this._value);
-	}
-	,__class__: haxe_ui_core_ComponentValueBehaviour
-});
-var haxe_ui_core_ComponentToolTipBehaviour = function(component) {
-	haxe_ui_behaviours_DataBehaviour.call(this,component);
-};
-$hxClasses["haxe.ui.core.ComponentToolTipBehaviour"] = haxe_ui_core_ComponentToolTipBehaviour;
-haxe_ui_core_ComponentToolTipBehaviour.__name__ = "haxe.ui.core.ComponentToolTipBehaviour";
-haxe_ui_core_ComponentToolTipBehaviour.__super__ = haxe_ui_behaviours_DataBehaviour;
-haxe_ui_core_ComponentToolTipBehaviour.prototype = $extend(haxe_ui_behaviours_DataBehaviour.prototype,{
-	validateData: function() {
-		if(this._value == null || haxe_ui_util_Variant.get_isNull(this._value)) {
-			haxe_ui_tooltips_ToolTipManager.get_instance().unregisterTooltip(this._component);
-		} else {
-			haxe_ui_tooltips_ToolTipManager.get_instance().registerTooltip(this._component,{ tipData : haxe_ui_util_Variant.toDynamic(this._value), renderer : this._component.get_tooltipRenderer()});
-		}
-	}
-	,setDynamic: function(value) {
-		if(value == null) {
-			haxe_ui_tooltips_ToolTipManager.get_instance().unregisterTooltip(this._component);
-		} else {
-			haxe_ui_tooltips_ToolTipManager.get_instance().registerTooltip(this._component,{ tipData : value, renderer : this._component.get_tooltipRenderer()});
-		}
-	}
-	,getDynamic: function() {
-		var options = haxe_ui_tooltips_ToolTipManager.get_instance().getTooltipOptions(this._component);
-		if(options == null) {
-			return null;
-		}
-		return options.tipData;
-	}
-	,__class__: haxe_ui_core_ComponentToolTipBehaviour
-});
-var haxe_ui_core_ComponentToolTipRendererBehaviour = function(component) {
-	haxe_ui_behaviours_DataBehaviour.call(this,component);
-};
-$hxClasses["haxe.ui.core.ComponentToolTipRendererBehaviour"] = haxe_ui_core_ComponentToolTipRendererBehaviour;
-haxe_ui_core_ComponentToolTipRendererBehaviour.__name__ = "haxe.ui.core.ComponentToolTipRendererBehaviour";
-haxe_ui_core_ComponentToolTipRendererBehaviour.__super__ = haxe_ui_behaviours_DataBehaviour;
-haxe_ui_core_ComponentToolTipRendererBehaviour.prototype = $extend(haxe_ui_behaviours_DataBehaviour.prototype,{
-	validateData: function() {
-		if(this._value == null || haxe_ui_util_Variant.get_isNull(this._value)) {
-			haxe_ui_tooltips_ToolTipManager.get_instance().updateTooltipRenderer(this._component,null);
-		} else {
-			haxe_ui_tooltips_ToolTipManager.get_instance().updateTooltipRenderer(this._component,haxe_ui_util_Variant.toComponent(this._value));
-		}
-	}
-	,__class__: haxe_ui_core_ComponentToolTipRendererBehaviour
-});
-var haxe_ui_core_ImageDisplay = function() {
-	this._isValidating = false;
-	this._isAllInvalid = false;
-	this._invalidationFlags = new haxe_ds_StringMap();
-	haxe_ui_backend_ImageDisplayImpl.call(this);
-};
-$hxClasses["haxe.ui.core.ImageDisplay"] = haxe_ui_core_ImageDisplay;
-haxe_ui_core_ImageDisplay.__name__ = "haxe.ui.core.ImageDisplay";
-haxe_ui_core_ImageDisplay.__super__ = haxe_ui_backend_ImageDisplayImpl;
-haxe_ui_core_ImageDisplay.prototype = $extend(haxe_ui_backend_ImageDisplayImpl.prototype,{
-	_invalidationFlags: null
-	,_isAllInvalid: null
-	,_isValidating: null
-	,get_left: function() {
-		return this._left;
-	}
-	,set_left: function(value) {
-		if(value == this._left) {
-			return value;
-		}
-		this._left = value;
-		this.invalidateComponent("position");
-		return value;
-	}
-	,get_top: function() {
-		return this._top;
-	}
-	,set_top: function(value) {
-		if(value == this._top) {
-			return value;
-		}
-		this._top = value;
-		this.invalidateComponent("position");
-		return value;
-	}
-	,set_imageWidth: function(value) {
-		if(this._imageWidth == value || value <= 0) {
-			return value;
-		}
-		this._imageWidth = value;
-		this.invalidateComponent("display");
-		return value;
-	}
-	,get_imageWidth: function() {
-		return this._imageWidth;
-	}
-	,set_imageHeight: function(value) {
-		if(this._imageHeight == value || value <= 0) {
-			return value;
-		}
-		this._imageHeight = value;
-		this.invalidateComponent("display");
-		return value;
-	}
-	,get_imageHeight: function() {
-		return this._imageHeight;
-	}
-	,get_imageInfo: function() {
-		return this._imageInfo;
-	}
-	,set_imageInfo: function(value) {
-		if(value == this._imageInfo) {
-			return value;
-		}
-		this._imageInfo = value;
-		this._imageWidth = this._imageInfo.width;
-		this._imageHeight = this._imageInfo.height;
-		this.invalidateComponent("data");
-		this.invalidateComponent("display");
-		return value;
-	}
-	,get_imageClipRect: function() {
-		return this._imageClipRect;
-	}
-	,set_imageClipRect: function(value) {
-		this._imageClipRect = value;
-		this.invalidateComponent("display");
-		return value;
-	}
-	,isComponentInvalid: function(flag) {
-		if(flag == null) {
-			flag = "all";
-		}
-		if(this._isAllInvalid == true) {
-			return true;
-		}
-		if(flag == "all") {
-			var h = this._invalidationFlags.h;
-			var value_h = h;
-			var value_keys = Object.keys(h);
-			var value_length = value_keys.length;
-			var value_current = 0;
-			while(value_current < value_length) {
-				var value = value_h[value_keys[value_current++]];
-				return true;
-			}
-			return false;
-		}
-		return Object.prototype.hasOwnProperty.call(this._invalidationFlags.h,flag);
-	}
-	,invalidateComponent: function(flag) {
-		if(flag == null) {
-			flag = "all";
-		}
-		if(flag == "all") {
-			this._isAllInvalid = true;
-			this.parentComponent.invalidateComponent("imageDisplay");
-		} else if(!Object.prototype.hasOwnProperty.call(this._invalidationFlags.h,flag)) {
-			this._invalidationFlags.h[flag] = true;
-			this.parentComponent.invalidateComponent("imageDisplay");
-		}
-	}
-	,validateComponent: function() {
-		if(this._isValidating == true || this.isComponentInvalid() == false) {
-			return;
-		}
-		this._isValidating = true;
-		this.handleValidate();
-		var h = this._invalidationFlags.h;
-		var flag_h = h;
-		var flag_keys = Object.keys(h);
-		var flag_length = flag_keys.length;
-		var flag_current = 0;
-		while(flag_current < flag_length) {
-			var flag = flag_keys[flag_current++];
-			var _this = this._invalidationFlags;
-			if(Object.prototype.hasOwnProperty.call(_this.h,flag)) {
-				delete(_this.h[flag]);
-			}
-		}
-		this._isAllInvalid = false;
-		this._isValidating = false;
-	}
-	,handleValidate: function() {
-		var dataInvalid = this.isComponentInvalid("data");
-		var positionInvalid = this.isComponentInvalid("position");
-		var displayInvalid = this.isComponentInvalid("display");
-		if(dataInvalid) {
-			this.validateData();
-		}
-		if(positionInvalid) {
-			this.validatePosition();
-		}
-		if(displayInvalid) {
-			this.validateDisplay();
-		}
-	}
-	,__class__: haxe_ui_core_ImageDisplay
-	,__properties__: {set_imageClipRect:"set_imageClipRect",get_imageClipRect:"get_imageClipRect",set_imageInfo:"set_imageInfo",get_imageInfo:"get_imageInfo",set_imageHeight:"set_imageHeight",get_imageHeight:"get_imageHeight",set_imageWidth:"set_imageWidth",get_imageWidth:"get_imageWidth",set_top:"set_top",get_top:"get_top",set_left:"set_left",get_left:"get_left"}
 });
 var haxe_ui_core_Platform = function() {
 	haxe_ui_backend_PlatformImpl.call(this);
@@ -21607,22 +19877,6 @@ haxe_ui_events_MouseEvent.prototype = $extend(haxe_ui_events_UIEvent.prototype,{
 	,__class__: haxe_ui_events_MouseEvent
 	,__properties__: {get_localY:"get_localY",get_localX:"get_localX"}
 });
-var haxe_ui_events_ScrollEvent = function(type) {
-	haxe_ui_events_UIEvent.call(this,type);
-};
-$hxClasses["haxe.ui.events.ScrollEvent"] = haxe_ui_events_ScrollEvent;
-haxe_ui_events_ScrollEvent.__name__ = "haxe.ui.events.ScrollEvent";
-haxe_ui_events_ScrollEvent.__super__ = haxe_ui_events_UIEvent;
-haxe_ui_events_ScrollEvent.prototype = $extend(haxe_ui_events_UIEvent.prototype,{
-	clone: function() {
-		var c = new haxe_ui_events_ScrollEvent(this.type);
-		c.type = this.type;
-		c.target = this.target;
-		this.postClone(c);
-		return c;
-	}
-	,__class__: haxe_ui_events_ScrollEvent
-});
 var haxe_ui_events_ValidationEvent = function(type) {
 	haxe_ui_events_UIEvent.call(this,type);
 };
@@ -22878,117 +21132,6 @@ haxe_ui_layouts_LayoutFactory.createFromName = function(name) {
 	}
 	return new haxe_ui_layouts_DefaultLayout();
 };
-var haxe_ui_layouts_ScrollViewLayout = function() {
-	haxe_ui_layouts_DefaultLayout.call(this);
-};
-$hxClasses["haxe.ui.layouts.ScrollViewLayout"] = haxe_ui_layouts_ScrollViewLayout;
-haxe_ui_layouts_ScrollViewLayout.__name__ = "haxe.ui.layouts.ScrollViewLayout";
-haxe_ui_layouts_ScrollViewLayout.__super__ = haxe_ui_layouts_DefaultLayout;
-haxe_ui_layouts_ScrollViewLayout.prototype = $extend(haxe_ui_layouts_DefaultLayout.prototype,{
-	repositionChildren: function() {
-		var contents = this.get_component().findComponent("scrollview-contents",null,false,"css");
-		if(contents == null) {
-			return;
-		}
-		var hscroll = this.get_component().findComponent(null,haxe_ui_components_HorizontalScroll,false);
-		var vscroll = this.get_component().findComponent(null,haxe_ui_components_VerticalScroll,false);
-		var borderSize = this.get_borderSize();
-		if(hscroll != null && this.hidden(hscroll) == false) {
-			hscroll.moveComponent(this.get_paddingLeft() + borderSize,Math.round(this.get_component().get_componentHeight() - hscroll.get_componentHeight() - this.get_paddingBottom() + this.marginTop(hscroll) - borderSize));
-		}
-		if(vscroll != null && this.hidden(vscroll) == false) {
-			vscroll.moveComponent(Math.round(this.get_component().get_componentWidth() - vscroll.get_componentWidth() - this.get_paddingRight() + this.marginLeft(vscroll)) - borderSize,this.get_paddingTop() + borderSize);
-		}
-		var contents = this.get_component().findComponent("scrollview-contents",null,false,"css");
-		if(contents != null) {
-			contents.moveComponent(this.get_paddingLeft() + borderSize,this.get_paddingTop() + borderSize);
-		}
-	}
-	,resizeChildren: function() {
-		haxe_ui_layouts_DefaultLayout.prototype.resizeChildren.call(this);
-		var hscroll = this.get_component().findComponent(null,haxe_ui_components_HorizontalScroll,false);
-		var vscroll = this.get_component().findComponent(null,haxe_ui_components_VerticalScroll,false);
-		var usableSize = this.get_usableSize();
-		var percentWidth = 100;
-		var percentHeight = 100;
-		var _g = 0;
-		var _this = this.get_component();
-		var _g1 = _this._children == null ? [] : _this._children;
-		while(_g < _g1.length) {
-			var child = _g1[_g];
-			++_g;
-			if(child != hscroll && child != vscroll) {
-				continue;
-			}
-			var cx = null;
-			var cy = null;
-			if(child.get_percentWidth() != null) {
-				cx = usableSize.width * child.get_percentWidth() / percentWidth - this.marginLeft(child) - this.marginRight(child);
-			}
-			if(child.get_percentHeight() != null) {
-				cy = usableSize.height * child.get_percentHeight() / percentHeight - this.marginTop(child) - this.marginBottom(child);
-			}
-			if(this.fixedMinWidth(child) && child.get_percentWidth() != null) {
-				percentWidth -= child.get_percentWidth();
-			}
-			if(this.fixedMinHeight(child) && child.get_percentHeight() != null) {
-				percentHeight -= child.get_percentHeight();
-			}
-			child.resizeComponent(cx,cy);
-		}
-	}
-	,get_usableSize: function() {
-		var size = haxe_ui_layouts_DefaultLayout.prototype.get_usableSize.call(this);
-		var hscroll = this.get_component().findComponent(null,haxe_ui_components_HorizontalScroll,false);
-		var vscroll = this.get_component().findComponent(null,haxe_ui_components_VerticalScroll,false);
-		if(hscroll != null && hscroll.get_includeInLayout() == true && this.hidden(hscroll) == false) {
-			size.height -= hscroll.get_componentHeight() - this.marginTop(hscroll);
-		}
-		if(vscroll != null && vscroll.get_includeInLayout() == true && this.hidden(vscroll) == false) {
-			size.width -= vscroll.get_componentWidth() - this.marginLeft(vscroll);
-		}
-		if((js_Boot.__cast(this.get_component() , haxe_ui_containers_ScrollView)).get_native() == true || this._component.get_isNativeScroller() == true) {
-			var contents = this.get_component().findComponent("scrollview-contents",null,false,"css");
-			if(contents != null) {
-				if(contents.get_componentWidth() > size.width) {
-					size.height -= haxe_ui_core_Platform.get_hscrollHeight();
-				}
-				if(contents.get_componentHeight() > size.height) {
-					size.width -= haxe_ui_core_Platform.get_vscrollWidth();
-				}
-			}
-		}
-		size.width += 1;
-		var borderSize = this.get_borderSize();
-		size.width -= borderSize * 2;
-		size.height -= borderSize * 2;
-		return size;
-	}
-	,calcAutoSize: function(exclusions) {
-		var hscroll = this.get_component().findComponent(null,haxe_ui_components_HorizontalScroll,false);
-		var vscroll = this.get_component().findComponent(null,haxe_ui_components_VerticalScroll,false);
-		var size = haxe_ui_layouts_DefaultLayout.prototype.calcAutoSize.call(this,[hscroll,vscroll]);
-		if(hscroll != null && hscroll.get_hidden() == false) {
-			size.height += hscroll.get_componentHeight();
-		}
-		if(vscroll != null && vscroll.get_hidden() == false) {
-			size.width += vscroll.get_componentWidth();
-		}
-		if((js_Boot.__cast(this.get_component() , haxe_ui_containers_ScrollView)).get_native() == true || this._component.get_isNativeScroller() == true) {
-			var contents = this.get_component().findComponent("scrollview-contents",null,false,"css");
-			if(contents != null) {
-				if(contents.get_width() > this.get_component().get_width()) {
-					size.height += haxe_ui_core_Platform.get_hscrollHeight();
-				}
-				if(contents.get_height() > this.get_component().get_height()) {
-					size.width += haxe_ui_core_Platform.get_vscrollWidth();
-				}
-			}
-		}
-		return size;
-	}
-	,__class__: haxe_ui_layouts_ScrollViewLayout
-});
 var haxe_ui_layouts_VerticalGridLayout = function() {
 	this._columns = 1;
 	haxe_ui_layouts_Layout.call(this);
@@ -23477,470 +21620,6 @@ haxe_ui_layouts_VerticalLayout.prototype = $extend(haxe_ui_layouts_DefaultLayout
 		return size;
 	}
 	,__class__: haxe_ui_layouts_VerticalLayout
-});
-var haxe_ui_layouts_VirtualLayout = function() {
-	this._lastItemRenderer = null;
-	this._sizeCache = [];
-	this._rendererPool = [];
-	this._lastIndex = -1;
-	this._firstIndex = -1;
-	haxe_ui_layouts_ScrollViewLayout.call(this);
-};
-$hxClasses["haxe.ui.layouts.VirtualLayout"] = haxe_ui_layouts_VirtualLayout;
-haxe_ui_layouts_VirtualLayout.__name__ = "haxe.ui.layouts.VirtualLayout";
-haxe_ui_layouts_VirtualLayout.__super__ = haxe_ui_layouts_ScrollViewLayout;
-haxe_ui_layouts_VirtualLayout.prototype = $extend(haxe_ui_layouts_ScrollViewLayout.prototype,{
-	_firstIndex: null
-	,_lastIndex: null
-	,_rendererPool: null
-	,_sizeCache: null
-	,contents: null
-	,get_contents: function() {
-		if(this.contents == null) {
-			this.contents = this.findComponent("scrollview-contents",null,false,"css");
-		}
-		return this.contents;
-	}
-	,get_dataSource: function() {
-		return (js_Boot.__cast(this._component , haxe_ui_core_IDataComponent)).get_dataSource();
-	}
-	,itemWidth: null
-	,get_itemWidth: function() {
-		var comp = js_Boot.__cast(this._component , haxe_ui_containers_IVirtualContainer);
-		if(comp.get_itemWidth() > 0) {
-			return comp.get_itemWidth();
-		}
-		var _this = this.get_contents();
-		var childComponents = _this._children == null ? [] : _this._children;
-		var result = 0;
-		if(childComponents.length > 0) {
-			result = childComponents[0].get_width();
-			if(result <= 0) {
-				childComponents[0].syncComponentValidation();
-				result = childComponents[0].get_width();
-			}
-		}
-		if(result > 0) {
-			comp.set_itemWidth(result);
-		} else {
-			result = 1;
-		}
-		return result;
-	}
-	,itemHeight: null
-	,get_itemHeight: function() {
-		var comp = js_Boot.__cast(this._component , haxe_ui_containers_IVirtualContainer);
-		if(comp.get_itemHeight() > 0) {
-			return comp.get_itemHeight();
-		}
-		var _this = this.get_contents();
-		var childComponents = _this._children == null ? [] : _this._children;
-		var result = 0;
-		if(childComponents.length > 0) {
-			result = childComponents[0].get_height();
-			if(result <= 0) {
-				childComponents[0].syncComponentValidation();
-				result = childComponents[0].get_height();
-			}
-		}
-		if(result <= 0) {
-			result = 25;
-		}
-		return result;
-	}
-	,itemCount: null
-	,get_itemCount: function() {
-		var comp = js_Boot.__cast(this._component , haxe_ui_containers_IVirtualContainer);
-		if(comp.get_itemCount() >= 0) {
-			return comp.get_itemCount();
-		} else {
-			return 0;
-		}
-	}
-	,refresh: function() {
-		this.refreshData();
-		haxe_ui_layouts_ScrollViewLayout.prototype.refresh.call(this);
-	}
-	,refreshData: function() {
-		if(this.get_dataSource() == null) {
-			return;
-		}
-		var comp = js_Boot.__cast(this._component , haxe_ui_containers_IVirtualContainer);
-		if(comp.get_virtual() == false) {
-			this.refreshNonVirtualData();
-		} else {
-			this.refreshVirtualData();
-		}
-	}
-	,_lastItemRenderer: null
-	,refreshNonVirtualData: function() {
-		var comp = js_Boot.__cast(this._component , haxe_ui_containers_IVirtualContainer);
-		if(comp.get_itemRenderer() != this._lastItemRenderer) {
-			this._lastItemRenderer = comp.get_itemRenderer();
-			this.get_contents().removeAllComponents();
-		}
-		var dataSource = this.get_dataSource();
-		var contents = this.get_contents();
-		var _g = 0;
-		var _g1 = dataSource.get_size();
-		while(_g < _g1) {
-			var n = _g++;
-			var data = dataSource.get(n);
-			var item = null;
-			if(n < (contents._children == null ? [] : contents._children).length) {
-				item = js_Boot.__cast((contents._children == null ? [] : contents._children)[n] , haxe_ui_core_ItemRenderer);
-				if(item.get_data() == data) {
-					item.invalidateComponent("data",false);
-					continue;
-				}
-				var cls = this.itemClass(n,data);
-				if(!js_Boot.__instanceof(item,cls)) {
-					this.removeRenderer(item);
-					item = this.getRenderer(cls,n);
-					contents.addComponentAt(item,n);
-				}
-			} else {
-				var cls1 = this.itemClass(n,data);
-				item = this.getRenderer(cls1,n);
-				contents.addComponent(item);
-			}
-			var className = n % 2 == 0 ? "even" : "odd";
-			if(item.classes.indexOf(className) == -1) {
-				var inverseClassName = n % 2 == 0 ? "odd" : "even";
-				item.removeClass(inverseClassName);
-				item.addClass(className);
-			}
-			item.itemIndex = n;
-			item.set_data(data);
-		}
-		while(dataSource.get_size() < (contents._children == null ? [] : contents._children).length) {
-			var item = js_Boot.__cast((contents._children == null ? [] : contents._children)[(contents._children == null ? [] : contents._children).length - 1] , haxe_ui_core_ItemRenderer);
-			this.removeRenderer(item);
-		}
-	}
-	,refreshVirtualData: function() {
-		var comp = js_Boot.__cast(this._component , haxe_ui_containers_IVirtualContainer);
-		if(comp.get_itemRenderer() != this._lastItemRenderer) {
-			this._lastItemRenderer = comp.get_itemRenderer();
-			this.get_contents().removeAllComponents();
-			this._rendererPool = [];
-		}
-		this.removeInvisibleRenderers();
-		this.calculateRangeVisible();
-		this.updateScroll();
-		var dataSource = this.get_dataSource();
-		var i = 0;
-		var _g = this._firstIndex;
-		var _g1 = this._lastIndex;
-		while(_g < _g1) {
-			var n = _g++;
-			var data = dataSource.get(n);
-			var item = null;
-			var cls = this.itemClass(n,data);
-			var _this = this.get_contents();
-			if((_this._children == null ? [] : _this._children).length <= i) {
-				item = this.getRenderer(cls,n);
-				this.get_contents().addComponent(item);
-			} else {
-				var _this1 = this.get_contents();
-				item = js_Boot.__cast((_this1._children == null ? [] : _this1._children)[i] , haxe_ui_core_ItemRenderer);
-				if(!js_Boot.__instanceof(item,cls)) {
-					item = this.getRenderer(cls,n);
-					this.get_contents().addComponentAt(item,i);
-				} else if(item.itemIndex != n) {
-					if(this._component.hasEvent("rendererDestroyed")) {
-						this._component.dispatch(new haxe_ui_events_UIEvent("rendererDestroyed",null,item));
-					}
-					this._component.setComponentIndex(item,i);
-					item.itemIndex = n;
-					if(this._component.hasEvent("rendererCreated")) {
-						this._component.dispatch(new haxe_ui_events_UIEvent("rendererCreated",null,item));
-					}
-				}
-			}
-			var className = n % 2 == 0 ? "even" : "odd";
-			if(item.classes.indexOf(className) == -1) {
-				var inverseClassName = n % 2 == 0 ? "odd" : "even";
-				item.removeClass(inverseClassName);
-				item.addClass(className);
-			}
-			item.set_data(data);
-			++i;
-		}
-		while(true) {
-			var _this = this.get_contents();
-			if(!((_this._children == null ? [] : _this._children).length > i)) {
-				break;
-			}
-			var _this1 = this.get_contents();
-			var tmp = _this1._children == null ? [] : _this1._children;
-			var _this2 = this.get_contents();
-			this.removeRenderer(js_Boot.__cast(tmp[(_this2._children == null ? [] : _this2._children).length - 1] , haxe_ui_core_ItemRenderer),false);
-		}
-	}
-	,calculateRangeVisible: function() {
-	}
-	,updateScroll: function() {
-	}
-	,itemClass: function(index,data) {
-		var comp = js_Boot.__cast(this._component , haxe_ui_containers_IVirtualContainer);
-		if(comp.get_itemRendererClass() != null) {
-			return comp.get_itemRendererClass();
-		} else if(comp.get_itemRenderer() != null) {
-			return js_Boot.getClass(comp.get_itemRenderer());
-		} else {
-			return haxe_ui_core_BasicItemRenderer;
-		}
-	}
-	,getRenderer: function(cls,index) {
-		var instance = null;
-		var comp = js_Boot.__cast(this._component , haxe_ui_containers_IVirtualContainer);
-		if(comp.get_virtual() == true) {
-			var _g = 0;
-			var _g1 = this._rendererPool.length;
-			while(_g < _g1) {
-				var i = _g++;
-				var renderer = this._rendererPool[i];
-				if(js_Boot.__instanceof(renderer,cls)) {
-					this._rendererPool.splice(i,1);
-					instance = renderer;
-					break;
-				}
-			}
-		}
-		if(instance == null) {
-			if(comp.get_itemRenderer() != null && js_Boot.getClass(comp.get_itemRenderer()) == cls) {
-				instance = comp.get_itemRenderer().cloneComponent();
-			} else {
-				instance = Type.createInstance(cls,[]);
-			}
-		}
-		instance.itemIndex = index;
-		if(this._component.hasEvent("rendererCreated")) {
-			this._component.dispatch(new haxe_ui_events_UIEvent("rendererCreated",null,instance));
-		}
-		if(this._component.get_hidden() == false) {
-			instance.handleVisibility(true);
-		}
-		return js_Boot.__cast(instance , haxe_ui_core_ItemRenderer);
-	}
-	,removeRenderer: function(renderer,dispose) {
-		if(dispose == null) {
-			dispose = true;
-		}
-		this._component.removeComponent(renderer,dispose);
-		var comp = js_Boot.__cast(this._component , haxe_ui_containers_IVirtualContainer);
-		if(comp.get_virtual() == true) {
-			this._rendererPool.push(js_Boot.__cast(renderer , haxe_ui_core_ItemRenderer));
-		}
-		if(this._component.hasEvent("rendererDestroyed")) {
-			this._component.dispatch(new haxe_ui_events_UIEvent("rendererDestroyed",null,renderer));
-		}
-		renderer.itemIndex = -1;
-	}
-	,removeInvisibleRenderers: function() {
-		var contents = this.get_contents();
-		if(this._firstIndex >= 0) {
-			while((contents._children == null ? [] : contents._children).length > 0 && !this.isRendererVisible((contents._children == null ? [] : contents._children)[0])) {
-				this.removeRenderer(js_Boot.__cast((contents._children == null ? [] : contents._children)[0] , haxe_ui_core_ItemRenderer),false);
-				++this._firstIndex;
-			}
-		}
-		if(this._lastIndex >= 0) {
-			while((contents._children == null ? [] : contents._children).length > 0 && !this.isRendererVisible((contents._children == null ? [] : contents._children)[(contents._children == null ? [] : contents._children).length - 1])) {
-				this.removeRenderer(js_Boot.__cast((contents._children == null ? [] : contents._children)[(contents._children == null ? [] : contents._children).length - 1] , haxe_ui_core_ItemRenderer),false);
-				--this._lastIndex;
-			}
-		}
-	}
-	,isRendererVisible: function(renderer) {
-		if(renderer == null) {
-			return false;
-		}
-		if(renderer.get_top() < this._component.get_componentHeight() && renderer.get_top() + renderer.get_componentHeight() >= 0 && renderer.get_left() < this._component.get_componentWidth()) {
-			return renderer.get_left() + renderer.get_componentWidth() >= 0;
-		} else {
-			return false;
-		}
-	}
-	,isIndexVisible: function(index) {
-		if(index >= this._firstIndex) {
-			return index <= this._lastIndex;
-		} else {
-			return false;
-		}
-	}
-	,__class__: haxe_ui_layouts_VirtualLayout
-	,__properties__: $extend(haxe_ui_layouts_ScrollViewLayout.prototype.__properties__,{get_itemCount:"get_itemCount",get_itemHeight:"get_itemHeight",get_itemWidth:"get_itemWidth",get_dataSource:"get_dataSource",get_contents:"get_contents"})
-});
-var haxe_ui_layouts_VerticalVirtualLayout = function() {
-	haxe_ui_layouts_VirtualLayout.call(this);
-};
-$hxClasses["haxe.ui.layouts.VerticalVirtualLayout"] = haxe_ui_layouts_VerticalVirtualLayout;
-haxe_ui_layouts_VerticalVirtualLayout.__name__ = "haxe.ui.layouts.VerticalVirtualLayout";
-haxe_ui_layouts_VerticalVirtualLayout.__super__ = haxe_ui_layouts_VirtualLayout;
-haxe_ui_layouts_VerticalVirtualLayout.prototype = $extend(haxe_ui_layouts_VirtualLayout.prototype,{
-	repositionChildren: function() {
-		haxe_ui_layouts_VirtualLayout.prototype.repositionChildren.call(this);
-		var comp = js_Boot.__cast(this._component , haxe_ui_containers_IVirtualContainer);
-		var itemHeight = this.get_itemHeight();
-		var contents = this.get_contents();
-		var verticalSpacing = contents.get_layout().get_verticalSpacing();
-		if(comp.get_virtual() == true) {
-			var n = this._firstIndex;
-			if(comp.get_variableItemSize() == true) {
-				var pos = -comp.get_vscrollPos();
-				var _g = 0;
-				var _g1 = this._lastIndex;
-				while(_g < _g1) {
-					var i = _g++;
-					if(i >= this._firstIndex) {
-						var c = contents.getComponentAt(i - this._firstIndex);
-						c.set_top(pos);
-					}
-					var size = this._sizeCache[i];
-					pos += (size != null && size != 0 ? size : itemHeight) + verticalSpacing;
-				}
-			} else {
-				var _g = 0;
-				var _g1 = contents._children == null ? [] : contents._children;
-				while(_g < _g1.length) {
-					var child = _g1[_g];
-					++_g;
-					child.set_top(n * (itemHeight + verticalSpacing) - comp.get_vscrollPos());
-					++n;
-				}
-			}
-		}
-	}
-	,verticalConstraintModifier: function() {
-		return 0;
-	}
-	,calculateRangeVisible: function() {
-		var comp = js_Boot.__cast(this._component , haxe_ui_containers_IVirtualContainer);
-		var verticalSpacing = this.get_contents().get_layout().get_verticalSpacing();
-		var itemHeight = this.get_itemHeight();
-		var visibleItemsCount = 0;
-		var contentsHeight = 0;
-		if(this.get_contents().get_autoHeight() == true) {
-			var itemCount = this.get_itemCount();
-			if(itemCount > 0 || this._component.get_autoHeight() == true) {
-				contentsHeight = itemCount * itemHeight - this.verticalConstraintModifier();
-			} else {
-				contentsHeight = this._component.get_height() - this.verticalConstraintModifier();
-			}
-		} else {
-			contentsHeight = this.get_contents().get_height() - this.verticalConstraintModifier();
-		}
-		if(contentsHeight > this._component.get_height() - this.verticalConstraintModifier()) {
-			contentsHeight = this._component.get_height() - this.verticalConstraintModifier();
-		}
-		if(comp.get_variableItemSize() == true) {
-			var totalSize = 0;
-			var requireInvalidation = false;
-			var newFirstIndex = -1;
-			var _g = 0;
-			var _g1 = this.get_dataSource().get_size();
-			while(_g < _g1) {
-				var i = _g++;
-				var size = this._sizeCache[i];
-				if(size == null || size == 0) {
-					if(i >= this._firstIndex && i <= this._lastIndex) {
-						var c = this.get_contents().getComponentAt(i - this._firstIndex);
-						if(c != null && c.get_componentHeight() > 0) {
-							this._sizeCache[i] = c.get_componentHeight();
-							size = c.get_componentHeight();
-						} else {
-							requireInvalidation = true;
-							size = itemHeight;
-						}
-					} else {
-						requireInvalidation = true;
-						size = itemHeight;
-					}
-				}
-				size += verticalSpacing;
-				if(newFirstIndex == -1) {
-					if(totalSize + size > comp.get_vscrollPos()) {
-						newFirstIndex = i;
-						totalSize += size - comp.get_vscrollPos();
-						++visibleItemsCount;
-					} else {
-						totalSize += size;
-					}
-				} else if(totalSize + size > contentsHeight) {
-					break;
-				} else {
-					++visibleItemsCount;
-					totalSize += size;
-				}
-			}
-			if(requireInvalidation == true) {
-				var _this = this._component;
-				if(!(_this._layout == null || _this._layoutLocked == true)) {
-					_this.invalidateComponent("layout",false);
-				}
-			}
-			this._firstIndex = newFirstIndex;
-		} else {
-			visibleItemsCount = Math.ceil(contentsHeight / (itemHeight + verticalSpacing));
-			this._firstIndex = comp.get_vscrollPos() / (itemHeight + verticalSpacing) | 0;
-		}
-		if(this._firstIndex < 0) {
-			this._firstIndex = 0;
-		}
-		var rc = new haxe_ui_geom_Rectangle(0,0,this.get_contents().get_width(),contentsHeight - (this.get_paddingTop() + this.get_paddingBottom()));
-		this.get_contents().set_componentClipRect(rc);
-		this._lastIndex = this._firstIndex + visibleItemsCount + 1;
-		if(this._lastIndex > this.get_dataSource().get_size()) {
-			this._lastIndex = this.get_dataSource().get_size();
-		}
-	}
-	,updateScroll: function() {
-		var comp = js_Boot.__cast(this._component , haxe_ui_containers_IVirtualContainer);
-		var usableSize = this.get_usableSize();
-		var dataSize = this.get_dataSource().get_size();
-		var verticalSpacing = this.get_contents().get_layout().get_verticalSpacing();
-		var scrollMax = 0;
-		var itemHeight = this.get_itemHeight();
-		if(comp.get_variableItemSize() == true) {
-			scrollMax = -usableSize.height;
-			var _g = 0;
-			var _g1 = this.get_dataSource().get_size();
-			while(_g < _g1) {
-				var i = _g++;
-				var size = this._sizeCache[i];
-				if(size == null || size == 0) {
-					size = itemHeight;
-				}
-				scrollMax += size + verticalSpacing + this.verticalConstraintModifier();
-			}
-		} else {
-			scrollMax = dataSize * itemHeight + (dataSize - 1) * verticalSpacing - usableSize.height + this.verticalConstraintModifier();
-		}
-		if(scrollMax < 0) {
-			scrollMax = 0;
-		}
-		comp.set_vscrollMax(scrollMax);
-		comp.set_vscrollPageSize(usableSize.height / (scrollMax + usableSize.height) * scrollMax);
-	}
-	,calcAutoSize: function(exclusions) {
-		var size = haxe_ui_layouts_VirtualLayout.prototype.calcAutoSize.call(this,exclusions);
-		var comp = js_Boot.__cast(this._component , haxe_ui_containers_IVirtualContainer);
-		if(comp.get_itemCount() > 0 && this._component.get_autoHeight() == true) {
-			var contents = this._component.findComponent("scrollview-contents",null,false);
-			var contentsPadding = 0;
-			if(contents != null) {
-				var layout = contents.get_layout();
-				if(layout != null) {
-					contentsPadding = layout.get_paddingTop() + layout.get_paddingBottom();
-				}
-			}
-			size.height = this.get_itemHeight() * comp.get_itemCount() + this.get_paddingTop() + this.get_paddingBottom() + contentsPadding;
-		}
-		return size;
-	}
-	,__class__: haxe_ui_layouts_VerticalVirtualLayout
 });
 var haxe_ui_locale_LocaleEvent = function(type) {
 	haxe_ui_events_UIEvent.call(this,type);
@@ -27204,13 +24883,13 @@ haxe_ui_styles_elements_RuleElement.prototype = {
 					var value = new haxe_ui_styles_elements_Directive("font-bold",haxe_ui_styles_Value.VBool(true));
 					this1.h["font-bold"] = value;
 				} else if(s == "italic") {
-					var this2 = this.directives;
+					var this11 = this.directives;
 					var value1 = new haxe_ui_styles_elements_Directive("font-italic",haxe_ui_styles_Value.VBool(true));
-					this2.h["font-italic"] = value1;
+					this11.h["font-italic"] = value1;
 				} else if(s == "underline") {
-					var this3 = this.directives;
+					var this12 = this.directives;
 					var value2 = new haxe_ui_styles_elements_Directive("font-underline",haxe_ui_styles_Value.VBool(true));
-					this3.h["font-underline"] = value2;
+					this12.h["font-underline"] = value2;
 				}
 			}
 			break;
@@ -31262,10 +28941,10 @@ lime__$internal_backend_html5_HTML5HTTPRequest.prototype = {
 				var value = this.parent.formData.h[key];
 				if(key.indexOf("[]") > -1 && ((value) instanceof Array)) {
 					var _g = [];
-					var x = $getIterator(value);
-					while(x.hasNext()) {
-						var x1 = x.next();
-						_g.push(encodeURIComponent(x1));
+					var x1 = $getIterator(value);
+					while(x1.hasNext()) {
+						var x11 = x1.next();
+						_g.push(encodeURIComponent(x11));
 					}
 					var arrayValue = _g.join("&amp;" + key + "=");
 					query += encodeURIComponent(key) + "=" + arrayValue;
@@ -34636,8 +32315,8 @@ lime__$internal_graphics_ImageDataUtil.getPixels = function(image,rect,format) {
 				pixel = argb;
 				break;
 			case 2:
-				var this2 = 0;
-				var bgra1 = this2;
+				var this11 = 0;
+				var bgra1 = this11;
 				bgra1 = (pixel >>> 8 & 255 & 255) << 24 | (pixel >>> 16 & 255 & 255) << 16 | (pixel >>> 24 & 255 & 255) << 8 | pixel & 255 & 255;
 				bgra = bgra1;
 				pixel = bgra;
@@ -35286,8 +32965,8 @@ lime__$internal_graphics_ImageDataUtil.setPixels = function(image,rect,bytePoint
 				break;
 			case 2:
 				var bgra = color;
-				var this2 = 0;
-				var rgba1 = this2;
+				var this11 = 0;
+				var rgba1 = this11;
 				rgba1 = (bgra >>> 8 & 255 & 255) << 24 | (bgra >>> 16 & 255 & 255) << 16 | (bgra >>> 24 & 255 & 255) << 8 | bgra & 255 & 255;
 				pixel = rgba1;
 				break;
@@ -47358,7 +45037,7 @@ var lime_utils_AssetCache = function() {
 	this.audio = new haxe_ds_StringMap();
 	this.font = new haxe_ds_StringMap();
 	this.image = new haxe_ds_StringMap();
-	this.version = 41411;
+	this.version = 662090;
 };
 $hxClasses["lime.utils.AssetCache"] = lime_utils_AssetCache;
 lime_utils_AssetCache.__name__ = "lime.utils.AssetCache";
@@ -85300,9 +82979,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this_high = a.high & b_high;
-	var this_low = a.low & b_low;
-	sr.f = this_low;
+	var this1_high = a.high & b_high;
+	var this1_low = a.low & b_low;
+	sr.f = this1_low;
 	var b = 56;
 	b &= 63;
 	var a;
@@ -85318,9 +82997,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this_high = a.high & b_high;
-	var this_low = a.low & b_low;
-	sr.m = this_low;
+	var this1_high = a.high & b_high;
+	var this1_low = a.low & b_low;
+	sr.m = this1_low;
 	var b = 52;
 	b &= 63;
 	var a;
@@ -85336,9 +83015,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this_high = a.high & b_high;
-	var this_low = a.low & b_low;
-	sr.w = this_low;
+	var this1_high = a.high & b_high;
+	var this1_low = a.low & b_low;
+	sr.w = this1_low;
 	var b = 48;
 	b &= 63;
 	var a;
@@ -85354,9 +83033,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this_high = a.high & b_high;
-	var this_low = a.low & b_low;
-	sr.s = this_low;
+	var this1_high = a.high & b_high;
+	var this1_low = a.low & b_low;
+	sr.s = this1_low;
 	var b = 44;
 	b &= 63;
 	var a;
@@ -85372,9 +83051,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this_high = a.high & b_high;
-	var this_low = a.low & b_low;
-	sr.d = this_low;
+	var this1_high = a.high & b_high;
+	var this1_low = a.low & b_low;
+	sr.d = this1_low;
 	var b = 40;
 	b &= 63;
 	var a;
@@ -85390,9 +83069,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this_high = a.high & b_high;
-	var this_low = a.low & b_low;
-	sr.t = this_low;
+	var this1_high = a.high & b_high;
+	var this1_low = a.low & b_low;
+	sr.t = this1_low;
 	var b = 32;
 	b &= 63;
 	var a;
@@ -85408,9 +83087,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this_high = a.high & b_high;
-	var this_low = a.low & b_low;
-	sr.type = this_low;
+	var this1_high = a.high & b_high;
+	var this1_low = a.low & b_low;
+	sr.type = this1_low;
 	var b = 16;
 	b &= 63;
 	var a;
@@ -85426,14 +83105,14 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 255;
-	var this_high = a.high & b_high;
-	var this_low = a.low & b_low;
-	sr.b = this_low;
+	var this1_high = a.high & b_high;
+	var this1_low = a.low & b_low;
+	sr.b = this1_low;
 	var b_high = 0;
 	var b_low = 65535;
-	var this_high = v.high & b_high;
-	var this_low = v.low & b_low;
-	sr.n = this_low;
+	var this1_high = v.high & b_high;
+	var this1_low = v.low & b_low;
+	sr.n = this1_low;
 	return sr;
 };
 openfl_display3D__$internal__$AGALConverter_SamplerRegister.prototype = {
@@ -85518,9 +83197,9 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 1;
-	var this_high = a.high & b_high;
-	var this_low = a.low & b_low;
-	sr.d = this_low;
+	var this1_high = a.high & b_high;
+	var this1_low = a.low & b_low;
+	sr.d = this1_low;
 	var b = 48;
 	b &= 63;
 	var a;
@@ -85536,9 +83215,9 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 3;
-	var this_high = a.high & b_high;
-	var this_low = a.low & b_low;
-	sr.q = this_low;
+	var this1_high = a.high & b_high;
+	var this1_low = a.low & b_low;
+	sr.q = this1_low;
 	var b = 40;
 	b &= 63;
 	var a;
@@ -85554,9 +83233,9 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this_high = a.high & b_high;
-	var this_low = a.low & b_low;
-	sr.itype = this_low;
+	var this1_high = a.high & b_high;
+	var this1_low = a.low & b_low;
+	sr.itype = this1_low;
 	var b = 32;
 	b &= 63;
 	var a;
@@ -85572,9 +83251,9 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this_high = a.high & b_high;
-	var this_low = a.low & b_low;
-	sr.type = this_low;
+	var this1_high = a.high & b_high;
+	var this1_low = a.low & b_low;
+	sr.type = this1_low;
 	var b = 24;
 	b &= 63;
 	var a;
@@ -85590,9 +83269,9 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 255;
-	var this_high = a.high & b_high;
-	var this_low = a.low & b_low;
-	sr.s = this_low;
+	var this1_high = a.high & b_high;
+	var this1_low = a.low & b_low;
+	sr.s = this1_low;
 	var b = 16;
 	b &= 63;
 	var a;
@@ -85608,14 +83287,14 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 255;
-	var this_high = a.high & b_high;
-	var this_low = a.low & b_low;
-	sr.o = this_low;
+	var this1_high = a.high & b_high;
+	var this1_low = a.low & b_low;
+	sr.o = this1_low;
 	var b_high = 0;
 	var b_low = 65535;
-	var this_high = v.high & b_high;
-	var this_low = v.low & b_low;
-	sr.n = this_low;
+	var this1_high = v.high & b_high;
+	var this1_low = v.low & b_low;
+	sr.n = this1_low;
 	sr.sourceMask = sourceMask;
 	return sr;
 };
@@ -98862,7 +96541,6 @@ haxe_ui_backend_openfl_filters_GrayscaleFilter.GREEN = 0.587;
 haxe_ui_backend_openfl_filters_GrayscaleFilter.BLUE = 0.114;
 haxe_ui_backend_openfl_util_FontDetect._initialized = false;
 haxe_ui_backend_openfl_util_FontDetect._aFallbackFonts = ["serif","sans-serif","monospace","cursive","fantasy"];
-haxe_ui_containers_ScrollViewEvents.INERTIAL_TIME_CONSTANT = 325;
 haxe_ui_core_ItemRenderer.__meta__ = { fields : { allowHover : { clonable : null}}};
 haxe_ui_core_Platform.METRIC_VSCROLL_WIDTH = "patform.metrics.vscroll.width";
 haxe_ui_core_Platform.METRIC_HSCROLL_HEIGHT = "patform.metrics.hscroll.height";
@@ -98908,9 +96586,6 @@ haxe_ui_events_MouseEvent.DBL_CLICK = "doubleclick";
 haxe_ui_events_MouseEvent.RIGHT_CLICK = "rightclick";
 haxe_ui_events_MouseEvent.RIGHT_MOUSE_DOWN = "rightmousedown";
 haxe_ui_events_MouseEvent.RIGHT_MOUSE_UP = "rightmouseup";
-haxe_ui_events_ScrollEvent.CHANGE = "scrollchange";
-haxe_ui_events_ScrollEvent.START = "scrollstart";
-haxe_ui_events_ScrollEvent.STOP = "scrollstop";
 haxe_ui_events_ValidationEvent.START = "ValidationStart";
 haxe_ui_events_ValidationEvent.STOP = "ValidationStop";
 haxe_ui_locale_LocaleEvent.LOCALE_CHANGED = "localeChanged";

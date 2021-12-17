@@ -1,3 +1,4 @@
+import haxe.ds.IntMap;
 import haxe.CallStack;
 import haxe.ds.GenericStack;
 import tools.IntPair;
@@ -8,7 +9,7 @@ typedef Point = {
 	public var y : Int;
 }
 
-private class Cell {
+class Cell {
 	public var x : Int;
 	public var y : Int;
 	public var g : Int;
@@ -30,15 +31,6 @@ private class Cell {
 		this.potentialG = 0;
 		this.wallsDestroyed = 0;
 	}
-
-	// public function clone() : Cell {
-	// 	var cell = new Cell(x, y);
-	// 	cell.g = g;
-	// 	cell.h = h;
-	// 	cell.f = f;
-	// 	cell.destroyedWalls = destroyedWalls;
-	// 	return cell;
-	// }
 }
 
 class AStar {
@@ -59,7 +51,6 @@ class AStar {
 	private var teleportCost : Int;
 	private var teleportRadius : Int;
 	private var teleportUses : Int;
-	private var doCompletePath : Bool;
 	/**
 		@param edges must be either a set or an array of tools.IntPair
 		@param doCompletePath will find the path to the exit even though the energy is out
@@ -74,11 +65,9 @@ class AStar {
 		teleportRadius : Int,
 		edges : Any,
 		?closed : Set<Cell>,
-		?behindWalls : Array<Cell>,
-		?doCompletePath : Bool = true
+		?behindWalls : Array<Cell>
 	) {
 
-		this.doCompletePath = doCompletePath;
 		this.energy = energy * 10;
 		this.sledgehammerUses = sledgehammerUses;
 		this.teleportCost = teleportCost;
@@ -111,23 +100,16 @@ class AStar {
 	/** 
 		клетки должны быть смежными
 	**/
-	private function wallExistsBetweenCells( cell1 : Cell, cell2 : Cell, ?edges : Set<IntPair> ) : Bool {
+	public function wallExistsBetweenCells( cell1 : Cell, cell2 : Cell, ?edges : Set<IntPair> ) : Bool {
 		edges = edges == null ? this.edges : edges;
 		for ( edge in edges ) {
-			var c1 = unmapCell(edge.val1); // cell 1
-			var c2 = unmapCell(edge.val2); // cell 2
-			if ( (c1.x == cell1.x && c1.y == cell1.y && c2.x == cell2.x && c2.y == cell2.y)
-				|| (c2.x == cell1.x && c2.y == cell1.y && c1.x == cell2.x && c1.y == cell2.y)
+			var c1 = IntPair.unmapCell(edge.val1, size); // cell 1
+			var c2 = IntPair.unmapCell(edge.val2, size); // cell 2
+			if ( (c1.val1 == cell1.x && c1.val2 == cell1.y && c2.val1 == cell2.x && c2.val2 == cell2.y)
+				|| (c2.val1 == cell1.x && c2.val2 == cell1.y && c1.val1 == cell2.x && c1.val2 == cell2.y)
 			) return true;
 		}
 		return false;
-	}
-	/**
-		* Unmaps a value back to cell co-ordinates, 
-			@return serial x and y of tile in array 
-	 */
-	private inline function unmapCell( c : Int ) : Point {
-		return { x : c % size, y : Math.floor(c / size) };
 	}
 
 	private inline function getHeuristic( cell : Point )
@@ -142,24 +124,12 @@ class AStar {
 		adjCell.f = adjCell.h + adjCell.g;
 		adjCell.wallsDestroyed = cell.wallsDestroyed;
 	}
-	/** 
-		if false, will not use abilities to surpass walls and 
-		will find path that will be marked as impossible to travel 
-	**/
-	private inline function isAnyAbilityLeft() : Bool {
-		return teleportUses > 0 || sledgehammerUses > 0 || energy > 0;
-	}
 
 	private function displayPath() {
 		var resultPath : Array<Cell> = [end];
 		var cell = end;
 
-		@:privateAccess
-		for ( i in behindWalls ) {
-			Game.inst.heroPath.graphics.beginFill(0x2626b7, 0.3);
-			Game.inst.heroPath.graphics.drawRect(i.x * Game.inst.maze.cellSize + 5, i.y * Game.inst.maze.cellSize + 5, 10, 10);
-		}
-
+		if ( cell.parent == null ) return null;
 		while( cell.parent != start ) {
 			cell = cell.parent;
 			resultPath.push(cell);
@@ -204,49 +174,60 @@ class AStar {
 			heapify(array, size, lowest);
 		}
 	}
-	/** should only be called once per AStar instance **/
+	/** 
+		should only be called once per AStar instance
+
+		Моё решение: мы обходим граф лабиринта по A*, и во все клетки, находящиеся
+		за стеной, пишем их потенциальное G, чтобы потом, когда закончатся клетки в opened, 
+		мы начали ломать стены, образующие самые выгодные срезы, таким образом, чтобы из разница
+		между f и potentialF была наивысшей, при этом перерасчитывая все клетки, даже те, что уже в closed,
+		с тем условием, чтобы g стоимость была выше в соседней клетке
+
+		p.s. совсем недавно понял, что надо приступать к ломанию стен только тогда, когда в opened уже не 
+		осталось клеток 
+	**/
 	public function findPath() {
 		opened.push(start);
 		while( opened.length > 0 ) {
 
+			var cell = null;
 			// heapify opened array
 			{
-				var size = opened.length;
-				var start = 0;
-				while( start < size ) {
-					heapify(opened, size, start);
-					start++;
+				// var size = opened.length;
+				// var start = 0;
+				// while( start < size ) {
+				// 	heapify(opened, size, start);
+				// 	start++;
+				// }
+
+				for ( i in opened ) {
+					if ( cell == null ) {
+						cell = i;
+						continue;
+					}
+					if ( cell.f > i.f )
+						cell = i;
 				}
+				opened.remove(cell);
 			}
 
-			var cell = opened.pop();
+			// var cell = opened.pop();
 			closed.add(cell);
 
 			if ( cell == end ) {
-				trace(end.wallsDestroyed);
-
 				return displayPath();
 			}
 
-			while( cell.g >= energy && behindWalls.length > 0 && cell.wallsDestroyed < sledgehammerUses ) {
+			while( (cell.g >= energy + 10 || opened.length == 0) && behindWalls.length > 0 && cell.wallsDestroyed < sledgehammerUses ) {
 				var cellBehindWall = null;
 
 				// возвращает самую выгодную ячейку, в которую можно перейти, сломав стену
-				while( // sledgehammerUses > 0
-					// &&
+				while(
 					behindWalls.length > 0
 					&& (
 						cellBehindWall == null
 						|| cellBehindWall.g >= energy
 					) ) {
-
-						// // heapify behindwalls array
-						// var size = behindWalls.length;
-						// var start = 0;
-						// while( start < size ) {
-						// 	heapify(behindWalls, size, start);
-						// 	start++;
-						// }
 
 						// получаем стену, которую будет выгоднее всего будет сломать
 						for ( wall in behindWalls ) {
@@ -255,19 +236,13 @@ class AStar {
 								continue;
 							}
 							if (
-								wall.potentialF < wall.f 
+								wall.potentialF < wall.f
 								&& wall.wallsDestroyed < sledgehammerUses
 								&& wall.wallbreakingParent.wallsDestroyed < sledgehammerUses
 								&& wall.f - wall.potentialF > cellBehindWall.f - cellBehindWall.potentialF )
 
 								cellBehindWall = wall;
 						}
-						// trace(ensureThereWillBeNoLoops(cellBehindWall, cellBehindWall.wallbreakingParent),
-						// 	cellBehindWall.wallbreakingParent.parent != null && cellBehindWall.wallbreakingParent.parent == cellBehindWall
-						// );
-						// if ( cellBehindWall.wallbreakingParent.parent != null
-						// 	&& !ensureThereWillBeNoLoops(cellBehindWall, cellBehindWall.wallbreakingParent) )
-						// 	cellBehindWall = null;
 
 						if ( (cellBehindWall.wallbreakingParent.parent != null
 							&& !ensureThereWillBeNoLoops(cellBehindWall, cellBehindWall.wallbreakingParent))
@@ -285,31 +260,13 @@ class AStar {
 					&& cellBehindWall.wallbreakingParent.wallsDestroyed < sledgehammerUses
 					&& cellBehindWall.wallsDestroyed < sledgehammerUses ) {
 
-					trace("breaking wall in ", cellBehindWall.x, cellBehindWall.y, cellBehindWall.wallsDestroyed, cellBehindWall.wallbreakingParent.wallsDestroyed);
-
 					opened.push(cell);
 					closed.delete(cell);
 
 					cell = cellBehindWall;
 
-					// cell.wallbreakingParent.wallsDestroyed = cell.wallsDestroyed;
-					// var bakWallsBroken = cell.wallsDestroyed;
 					updateCell(cell, cell.wallbreakingParent);
 					cell.wallsDestroyed++;
-
-					// for ( i in behindWalls )
-					// 	if ( i.wallbreakingParent == cell || i.parent == cell)
-					// 		i.wallsDestroyed = cell.wallsDestroyed;
-
-					if ( cell.parent != null && cell.parent.parent != null && cell.parent.parent.parent == cell ) {
-						trace(cell.x, cell.y, cell.parent == cell, "amogus");
-					}
-
-					@:privateAccess {
-						Game.inst.heroPath.graphics.beginFill(0x373737, 0.8);
-						Game.inst.heroPath.graphics.drawRect(cell.x * Game.inst.maze.cellSize + 10,
-							cell.y * Game.inst.maze.cellSize + 10, 5, 5);
-					}
 
 					var parent = cell.parent;
 					while( parent != null ) {
@@ -326,27 +283,23 @@ class AStar {
 			var adjCells = getAdjacentCells(cell);
 
 			for ( adjCell in adjCells ) {
-				if ( (!closed.has(adjCell) || cell.f < adjCell.f - 20) && ensureThereWillBeNoLoops(adjCell, cell) ) {
-					if ( !wallExistsBetweenCells(adjCell, cell) ) {
-						if ( opened.contains(adjCell) ) {
-							// if adj cell is in open list, check if current path is
-							// better than the one previously found for this adj
-							// if ( adjCell.g > cell.g + 10 )
-							updateCell(adjCell, cell);
-						} else {
-							updateCell(adjCell, cell);
-							opened.push(adjCell);
-						}
-						if ( adjCell.parent != null && adjCell.parent.parent == adjCell ) {
-							trace(adjCell.x, adjCell.y, cell.parent == cell);
-						}
+				if ( (!closed.has(adjCell)
+					|| cell.g < adjCell.g - 30)
+					&& ensureThereWillBeNoLoops(adjCell, cell) ) {
 
-						if ( adjCell.parent != null && adjCell.parent.parent != null && adjCell.parent.parent.parent == adjCell ) {
-							trace(adjCell.x, adjCell.y, cell.parent == cell);
+					if ( !wallExistsBetweenCells(adjCell, cell) ) {
+						if ( !opened.contains(adjCell) ) {
+							opened.push(adjCell);
+							updateCell(adjCell, cell);
+						}
+						else {
+							if ( adjCell.g > cell.g + 10 )
+								updateCell(adjCell, cell);
 						}
 					} else {
 						// the adjCell is located over the wall
 						// we wont break walls after our energy runs out
+
 						if ( cell.g + 10 < energy ) {
 							// we mark cells that are behind walls to crush them later if needed
 							var potentialF = Std.int(getHeuristic(adjCell)) + cell.g + 10;
@@ -356,22 +309,6 @@ class AStar {
 								adjCell.wallbreakingParent = cell;
 								adjCell.wallsDestroyed = cell.wallsDestroyed;
 								behindWalls.push(adjCell);
-
-								// var textField = new openfl.text.TextField();
-								// // all your stuff on the textField
-								// textField.text = "ZHOPA";
-
-								// var textFieldBitmapData = new openfl.display.BitmapData(Std.int(textField.width), Std.int(textField.height), true, 0x000000);
-								// textFieldBitmapData.draw(textField);
-
-								// var textFieldBitmap = new openfl.display.Bitmap(textFieldBitmapData);
-								// textFieldBitmap.smoothing = true;
-								// textFieldBitmap.x = adjCell.x * Game.inst.maze.cellSize;
-								// textFieldBitmap.y = adjCell.y * Game.inst.maze.cellSize;
-
-								// @:privateAccess {
-								// 	Game.inst.heroPath.addChild(textFieldBitmap);
-								// }
 							}
 						}
 					}
@@ -379,7 +316,6 @@ class AStar {
 			}
 		}
 
-		trace("No path was found");
 		return null;
 	}
 }

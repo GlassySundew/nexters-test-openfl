@@ -22,14 +22,14 @@
 				</grid>
 			</vbox>
 
-			<button text="End turn" verticalAlign="center" percentWidth="100" />
-			<button text="Clear map" id="mazeClear" verticalAlign="center" percentWidth="100" />
+			<button text="End turn" id="endTurnButton" verticalAlign="center" percentWidth="100" />
+			<button text="Clear map" id="mazeClearButton" verticalAlign="center" percentWidth="100" />
 
 			<grid columns="2">
-				<button text="Add energy: " verticalAlign="center" percentWidth="100" />
-				<textfield id="display" text="40" horizontalAlign="right" />
+				<button text="Add energy: " id="addEnergyButton" verticalAlign="center" percentWidth="100" />
+				<textfield text="40" id="addRandomWallsTextField" horizontalAlign="right" />
 
-				<button text="Add random walls: " verticalAlign="center" />
+				<button text="Add random walls: " id="addRandomWallsButton" verticalAlign="center" />
 				<textfield id="display" text="100" placeholder="''+40" />
 			</grid>
 
