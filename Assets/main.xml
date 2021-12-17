@@ -15,7 +15,7 @@
 				<grid width="100%" columns="2">
 					<label text="Energy: " />
 					<label text="placeme" id="energyDisplayLabel" textAlign="right" width="100%" horizontalAlign="right" />
-					<label text="Slegdehammer: " />
+					<label text="Slegdehammers: " />
 					<label text="placeme" id="sledgehammerDisplayLabel" textAlign="right" width="100%" horizontalAlign="right" />
 					<label text="Portals: " />
 					<label text="placeme" id="portalsDisplayLabel" textAlign="right" width="100%" horizontalAlign="right" />

@@ -1,3 +1,4 @@
+import haxe.CallStack;
 import haxe.ds.GenericStack;
 import tools.IntPair;
 import js.lib.Set;
@@ -14,8 +15,9 @@ private class Cell {
 	public var h : Int;
 	public var f : Int;
 	public var potentialF : Int;
+	public var potentialG : Int;
 	public var parent : Cell;
-	public var destroyedWalls : Int;
+	public var wallsDestroyed : Int;
 	public var wallbreakingParent : Cell;
 
 	public function new( x : Int, y : Int ) {
@@ -25,7 +27,8 @@ private class Cell {
 		this.h = 0;
 		this.f = 0;
 		this.potentialF = 0;
-		this.destroyedWalls = 0;
+		this.potentialG = 0;
+		this.wallsDestroyed = 0;
 	}
 
 	// public function clone() : Cell {
@@ -137,7 +140,7 @@ class AStar {
 		adjCell.h = Std.int(getHeuristic(adjCell));
 		adjCell.parent = cell;
 		adjCell.f = adjCell.h + adjCell.g;
-		adjCell.destroyedWalls = cell.destroyedWalls;
+		adjCell.wallsDestroyed = cell.wallsDestroyed;
 	}
 	/** 
 		if false, will not use abilities to surpass walls and 
@@ -160,10 +163,25 @@ class AStar {
 		while( cell.parent != start ) {
 			cell = cell.parent;
 			resultPath.push(cell);
-			trace("displayign ", cell.x, cell.y);
 		}
 		resultPath.push(start);
 		return resultPath;
+	}
+	/**
+		@return true, if it is safe and will be no loops added
+	**/
+	private function ensureThereWillBeNoLoops( adjCell : Cell, cell : Cell ) : Bool {
+		var parent = cell.parent;
+		while( parent != null ) {
+			if ( parent == adjCell ) {
+				return false;
+			}
+			// trace(parent.x, parent.y);
+			parent = parent.parent;
+		}
+		// trace("leaving");
+
+		return true;
 	}
 	/**
 		heapify opened array by f param from bottom to top for faster performance with opened.pop()
@@ -188,8 +206,6 @@ class AStar {
 	}
 	/** should only be called once per AStar instance **/
 	public function findPath() {
-		trace("zhopa");
-
 		opened.push(start);
 		while( opened.length > 0 ) {
 
@@ -207,19 +223,21 @@ class AStar {
 			closed.add(cell);
 
 			if ( cell == end ) {
+				trace(end.wallsDestroyed);
+
 				return displayPath();
 			}
 
-			while( cell.g >= energy && behindWalls.length > 0 ) {
+			while( cell.g >= energy && behindWalls.length > 0 && cell.wallsDestroyed < sledgehammerUses - 1 ) {
 				var cellBehindWall = null;
 
+				// возвращает самую выгодную ячейку, во которую можно перейти, сломав стену
 				while( // sledgehammerUses > 0
 					// &&
 					behindWalls.length > 0
 					&& (
 						cellBehindWall == null
 						|| cellBehindWall.g >= energy
-						|| cellBehindWall.destroyedWalls >= sledgehammerUses
 					) ) {
 
 						// // heapify behindwalls array
@@ -230,33 +248,39 @@ class AStar {
 						// 	start++;
 						// }
 
-						if (
-							cellBehindWall != null
-							&& cellBehindWall.wallbreakingParent.parent == cellBehindWall
-
-						)
-							cellBehindWall = null;
-
 						// получаем стену, которую будет выгоднее всего будет сломать
 						for ( wall in behindWalls ) {
 							if ( cellBehindWall == null ) {
 								cellBehindWall = wall;
 								continue;
 							}
-							trace(cellBehindWall.g - cellBehindWall.wallbreakingParent.g, wall.g - wall.wallbreakingParent.g);
-
-							if ( cellBehindWall.g - cellBehindWall.wallbreakingParent.g < wall.g - wall.wallbreakingParent.g )
+							if ( wall.f - wall.potentialF > 50
+								&& wall.f - wall.potentialF > cellBehindWall.f - cellBehindWall.potentialF )
 								cellBehindWall = wall;
 						}
-						// trace("anuss", behindWalls.length, behindWalls.remove(cellBehindWall), bak == cellBehindWall, cellBehindWall.g >= energy);
-						if ( !behindWalls.remove(cellBehindWall) ) break;
+						// trace(ensureThereWillBeNoLoops(cellBehindWall, cellBehindWall.wallbreakingParent),
+						// 	cellBehindWall.wallbreakingParent.parent != null && cellBehindWall.wallbreakingParent.parent == cellBehindWall
+						// );
+						// if ( cellBehindWall.wallbreakingParent.parent != null
+						// 	&& !ensureThereWillBeNoLoops(cellBehindWall, cellBehindWall.wallbreakingParent) )
+						// 	cellBehindWall = null;
+
+						if ( cellBehindWall.wallbreakingParent.parent != null
+							&& !ensureThereWillBeNoLoops(cellBehindWall, cellBehindWall.wallbreakingParent) ) {
+							behindWalls.remove(cellBehindWall);
+							cellBehindWall = null;
+						}
+
+						if ( cellBehindWall != null && !behindWalls.remove(cellBehindWall) ) break;
 				}
 
-				// if ( cellBehindWall.wallbreakingParent.parent != null && cellBehindWall.wallbreakingParent.parent == cellBehindWall ) {
-				// 	trace(cell.x, cell.y, cell.parent == cell, "amogus");
-				// }
+				trace(cellBehindWall.wallbreakingParent.wallsDestroyed, cell.wallsDestroyed, cellBehindWall.wallsDestroyed);
 
-				if ( cellBehindWall != null ) {
+				if ( cellBehindWall != null
+					&& cellBehindWall.wallsDestroyed < sledgehammerUses - 1 ) {
+
+					trace("breaking wall in ", cellBehindWall.x, cellBehindWall.y);
+
 					opened.push(cell);
 					closed.delete(cell);
 
@@ -273,7 +297,12 @@ class AStar {
 						Game.inst.heroPath.graphics.drawRect(cell.x * Game.inst.maze.cellSize + 10,
 							cell.y * Game.inst.maze.cellSize + 10, 5, 5);
 					}
-					sledgehammerUses--;
+					cell.wallsDestroyed++;
+					// var parent = cell.parent;
+					// while( parent != null ) {
+					// 	parent.wallsDestroyed = cell.wallsDestroyed;
+					// 	parent = parent.parent;
+					// }
 				}
 			}
 
@@ -284,17 +313,21 @@ class AStar {
 			var adjCells = getAdjacentCells(cell);
 
 			for ( adjCell in adjCells ) {
-
-				if ( (!closed.has(adjCell) || (cell.g < adjCell.g - 20)) ) {
+				if ( (!closed.has(adjCell) || cell.f < adjCell.f - 30) && ensureThereWillBeNoLoops(adjCell, cell) ) {
 					if ( !wallExistsBetweenCells(adjCell, cell) ) {
 						if ( opened.contains(adjCell) ) {
 							// if adj cell is in open list, check if current path is
 							// better than the one previously found for this adj
+							// if ( adjCell.g > cell.g + 10 )
 							updateCell(adjCell, cell);
 						} else {
 							updateCell(adjCell, cell);
 							opened.push(adjCell);
 						}
+						if ( adjCell.parent != null && adjCell.parent.parent == adjCell ) {
+							trace(adjCell.x, adjCell.y, cell.parent == cell);
+						}
+
 						if ( adjCell.parent != null && adjCell.parent.parent != null && adjCell.parent.parent.parent == adjCell ) {
 							trace(adjCell.x, adjCell.y, cell.parent == cell);
 						}
@@ -302,10 +335,10 @@ class AStar {
 						// we wont break walls after our energy runs out
 						if ( cell.g + 10 < energy ) {
 							// we mark cells that are behind walls to crush them later if needed
-
 							var potentialF = Std.int(getHeuristic(adjCell)) + cell.g + 10;
 							if ( adjCell.potentialF == 0 || adjCell.potentialF > potentialF ) {
-								adjCell.destroyedWalls = cell.destroyedWalls;
+								adjCell.potentialG = cell.g + 10;
+								adjCell.potentialF = potentialF;
 								adjCell.wallbreakingParent = cell;
 								behindWalls.push(adjCell);
 							}
