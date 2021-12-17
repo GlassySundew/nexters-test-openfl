@@ -201,7 +201,7 @@ AStar.prototype = {
 				haxe_Log.trace(this.end.wallsDestroyed,{ fileName : "Source/AStar.hx", lineNumber : 226, className : "AStar", methodName : "findPath"});
 				return this.displayPath();
 			}
-			while(cell.g >= this.energy && this.behindWalls.length > 0 && cell.wallsDestroyed < this.sledgehammerUses - 1) {
+			while(cell.g >= this.energy && this.behindWalls.length > 0 && cell.wallsDestroyed < this.sledgehammerUses) {
 				var cellBehindWall = null;
 				while(this.behindWalls.length > 0 && (cellBehindWall == null || cellBehindWall.g >= this.energy)) {
 					var _g = 0;
@@ -213,11 +213,11 @@ AStar.prototype = {
 							cellBehindWall = wall;
 							continue;
 						}
-						if(wall.f - wall.potentialF > 50 && wall.f - wall.potentialF > cellBehindWall.f - cellBehindWall.potentialF) {
+						if(wall.potentialF < wall.f && wall.wallsDestroyed < this.sledgehammerUses && wall.wallbreakingParent.wallsDestroyed < this.sledgehammerUses && wall.f - wall.potentialF > cellBehindWall.f - cellBehindWall.potentialF) {
 							cellBehindWall = wall;
 						}
 					}
-					if(cellBehindWall.wallbreakingParent.parent != null && !this.ensureThereWillBeNoLoops(cellBehindWall,cellBehindWall.wallbreakingParent)) {
+					if(cellBehindWall.wallbreakingParent.parent != null && !this.ensureThereWillBeNoLoops(cellBehindWall,cellBehindWall.wallbreakingParent) || (cellBehindWall.wallbreakingParent.wallsDestroyed >= this.sledgehammerUses || cellBehindWall.wallsDestroyed >= this.sledgehammerUses)) {
 						HxOverrides.remove(this.behindWalls,cellBehindWall);
 						cellBehindWall = null;
 					}
@@ -225,19 +225,23 @@ AStar.prototype = {
 						break;
 					}
 				}
-				haxe_Log.trace(cellBehindWall.wallbreakingParent.wallsDestroyed,{ fileName : "Source/AStar.hx", lineNumber : 277, className : "AStar", methodName : "findPath", customParams : [cell.wallsDestroyed,cellBehindWall.wallsDestroyed]});
-				if(cellBehindWall != null && cellBehindWall.wallsDestroyed < this.sledgehammerUses - 1) {
-					haxe_Log.trace("breaking wall in ",{ fileName : "Source/AStar.hx", lineNumber : 282, className : "AStar", methodName : "findPath", customParams : [cellBehindWall.x,cellBehindWall.y]});
+				if(cellBehindWall != null && cellBehindWall.wallbreakingParent.wallsDestroyed < this.sledgehammerUses && cellBehindWall.wallsDestroyed < this.sledgehammerUses) {
+					haxe_Log.trace("breaking wall in ",{ fileName : "Source/AStar.hx", lineNumber : 288, className : "AStar", methodName : "findPath", customParams : [cellBehindWall.x,cellBehindWall.y,cellBehindWall.wallsDestroyed,cellBehindWall.wallbreakingParent.wallsDestroyed]});
 					this.opened.push(cell);
 					this.closed.delete(cell);
 					cell = cellBehindWall;
 					this.updateCell(cell,cell.wallbreakingParent);
+					cell.wallsDestroyed++;
 					if(cell.parent != null && cell.parent.parent != null && cell.parent.parent.parent == cell) {
-						haxe_Log.trace(cell.x,{ fileName : "Source/AStar.hx", lineNumber : 292, className : "AStar", methodName : "findPath", customParams : [cell.y,cell.parent == cell,"amogus"]});
+						haxe_Log.trace(cell.x,{ fileName : "Source/AStar.hx", lineNumber : 305, className : "AStar", methodName : "findPath", customParams : [cell.y,cell.parent == cell,"amogus"]});
 					}
 					Game.get_inst().heroPath.get_graphics().beginFill(3618615,0.8);
 					Game.get_inst().heroPath.get_graphics().drawRect(cell.x * Game.get_inst().maze.cellSize + 10,cell.y * Game.get_inst().maze.cellSize + 10,5,5);
-					cell.wallsDestroyed++;
+					var parent = cell.parent;
+					while(parent != null) {
+						parent.wallsDestroyed = cell.wallsDestroyed;
+						parent = parent.parent;
+					}
 				}
 			}
 			if(cell == this.end) {
@@ -248,7 +252,7 @@ AStar.prototype = {
 			while(_g2 < adjCells.length) {
 				var adjCell = adjCells[_g2];
 				++_g2;
-				if((!this.closed.has(adjCell) || cell.f < adjCell.f - 30) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
+				if((!this.closed.has(adjCell) || cell.f < adjCell.f - 20) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
 					if(!this.wallExistsBetweenCells(adjCell,cell)) {
 						if(this.opened.indexOf(adjCell) != -1) {
 							this.updateCell(adjCell,cell);
@@ -257,24 +261,25 @@ AStar.prototype = {
 							this.opened.push(adjCell);
 						}
 						if(adjCell.parent != null && adjCell.parent.parent == adjCell) {
-							haxe_Log.trace(adjCell.x,{ fileName : "Source/AStar.hx", lineNumber : 328, className : "AStar", methodName : "findPath", customParams : [adjCell.y,cell.parent == cell]});
+							haxe_Log.trace(adjCell.x,{ fileName : "Source/AStar.hx", lineNumber : 341, className : "AStar", methodName : "findPath", customParams : [adjCell.y,cell.parent == cell]});
 						}
 						if(adjCell.parent != null && adjCell.parent.parent != null && adjCell.parent.parent.parent == adjCell) {
-							haxe_Log.trace(adjCell.x,{ fileName : "Source/AStar.hx", lineNumber : 332, className : "AStar", methodName : "findPath", customParams : [adjCell.y,cell.parent == cell]});
+							haxe_Log.trace(adjCell.x,{ fileName : "Source/AStar.hx", lineNumber : 345, className : "AStar", methodName : "findPath", customParams : [adjCell.y,cell.parent == cell]});
 						}
 					} else if(cell.g + 10 < this.energy) {
 						var potentialF = (10 * (Math.abs(adjCell.x - this.end.x) + Math.abs(adjCell.y - this.end.y)) | 0) + cell.g + 10;
-						if(adjCell.potentialF == 0 || adjCell.potentialF > potentialF) {
+						if(adjCell.potentialF == 0) {
 							adjCell.potentialG = cell.g + 10;
 							adjCell.potentialF = potentialF;
 							adjCell.wallbreakingParent = cell;
+							adjCell.wallsDestroyed = cell.wallsDestroyed;
 							this.behindWalls.push(adjCell);
 						}
 					}
 				}
 			}
 		}
-		haxe_Log.trace("No path was found",{ fileName : "Source/AStar.hx", lineNumber : 351, className : "AStar", methodName : "findPath"});
+		haxe_Log.trace("No path was found",{ fileName : "Source/AStar.hx", lineNumber : 382, className : "AStar", methodName : "findPath"});
 		return null;
 	}
 	,__class__: AStar
@@ -1183,7 +1188,7 @@ ApplicationMain.main = function() {
 ApplicationMain.create = function(config) {
 	var app = new openfl_display_Application();
 	ManifestResources.init(config);
-	app.meta.h["build"] = "2";
+	app.meta.h["build"] = "3";
 	app.meta.h["company"] = "Company Name";
 	app.meta.h["file"] = "NextersTestOpenfl1";
 	app.meta.h["name"] = "NextersTestOpenfl1";

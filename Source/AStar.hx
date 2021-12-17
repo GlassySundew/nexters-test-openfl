@@ -228,10 +228,10 @@ class AStar {
 				return displayPath();
 			}
 
-			while( cell.g >= energy && behindWalls.length > 0 && cell.wallsDestroyed < sledgehammerUses - 1 ) {
+			while( cell.g >= energy && behindWalls.length > 0 && cell.wallsDestroyed < sledgehammerUses ) {
 				var cellBehindWall = null;
 
-				// возвращает самую выгодную ячейку, во которую можно перейти, сломав стену
+				// возвращает самую выгодную ячейку, в которую можно перейти, сломав стену
 				while( // sledgehammerUses > 0
 					// &&
 					behindWalls.length > 0
@@ -254,8 +254,12 @@ class AStar {
 								cellBehindWall = wall;
 								continue;
 							}
-							if ( wall.f - wall.potentialF > 50
+							if (
+								wall.potentialF < wall.f 
+								&& wall.wallsDestroyed < sledgehammerUses
+								&& wall.wallbreakingParent.wallsDestroyed < sledgehammerUses
 								&& wall.f - wall.potentialF > cellBehindWall.f - cellBehindWall.potentialF )
+
 								cellBehindWall = wall;
 						}
 						// trace(ensureThereWillBeNoLoops(cellBehindWall, cellBehindWall.wallbreakingParent),
@@ -265,8 +269,11 @@ class AStar {
 						// 	&& !ensureThereWillBeNoLoops(cellBehindWall, cellBehindWall.wallbreakingParent) )
 						// 	cellBehindWall = null;
 
-						if ( cellBehindWall.wallbreakingParent.parent != null
-							&& !ensureThereWillBeNoLoops(cellBehindWall, cellBehindWall.wallbreakingParent) ) {
+						if ( (cellBehindWall.wallbreakingParent.parent != null
+							&& !ensureThereWillBeNoLoops(cellBehindWall, cellBehindWall.wallbreakingParent))
+							|| (cellBehindWall.wallbreakingParent.wallsDestroyed >= sledgehammerUses
+								|| cellBehindWall.wallsDestroyed >= sledgehammerUses) ) {
+
 							behindWalls.remove(cellBehindWall);
 							cellBehindWall = null;
 						}
@@ -274,19 +281,25 @@ class AStar {
 						if ( cellBehindWall != null && !behindWalls.remove(cellBehindWall) ) break;
 				}
 
-				trace(cellBehindWall.wallbreakingParent.wallsDestroyed, cell.wallsDestroyed, cellBehindWall.wallsDestroyed);
-
 				if ( cellBehindWall != null
-					&& cellBehindWall.wallsDestroyed < sledgehammerUses - 1 ) {
+					&& cellBehindWall.wallbreakingParent.wallsDestroyed < sledgehammerUses
+					&& cellBehindWall.wallsDestroyed < sledgehammerUses ) {
 
-					trace("breaking wall in ", cellBehindWall.x, cellBehindWall.y);
+					trace("breaking wall in ", cellBehindWall.x, cellBehindWall.y, cellBehindWall.wallsDestroyed, cellBehindWall.wallbreakingParent.wallsDestroyed);
 
 					opened.push(cell);
 					closed.delete(cell);
 
 					cell = cellBehindWall;
 
+					// cell.wallbreakingParent.wallsDestroyed = cell.wallsDestroyed;
+					// var bakWallsBroken = cell.wallsDestroyed;
 					updateCell(cell, cell.wallbreakingParent);
+					cell.wallsDestroyed++;
+
+					// for ( i in behindWalls )
+					// 	if ( i.wallbreakingParent == cell || i.parent == cell)
+					// 		i.wallsDestroyed = cell.wallsDestroyed;
 
 					if ( cell.parent != null && cell.parent.parent != null && cell.parent.parent.parent == cell ) {
 						trace(cell.x, cell.y, cell.parent == cell, "amogus");
@@ -297,12 +310,12 @@ class AStar {
 						Game.inst.heroPath.graphics.drawRect(cell.x * Game.inst.maze.cellSize + 10,
 							cell.y * Game.inst.maze.cellSize + 10, 5, 5);
 					}
-					cell.wallsDestroyed++;
-					// var parent = cell.parent;
-					// while( parent != null ) {
-					// 	parent.wallsDestroyed = cell.wallsDestroyed;
-					// 	parent = parent.parent;
-					// }
+
+					var parent = cell.parent;
+					while( parent != null ) {
+						parent.wallsDestroyed = cell.wallsDestroyed;
+						parent = parent.parent;
+					}
 				}
 			}
 
@@ -313,7 +326,7 @@ class AStar {
 			var adjCells = getAdjacentCells(cell);
 
 			for ( adjCell in adjCells ) {
-				if ( (!closed.has(adjCell) || cell.f < adjCell.f - 30) && ensureThereWillBeNoLoops(adjCell, cell) ) {
+				if ( (!closed.has(adjCell) || cell.f < adjCell.f - 20) && ensureThereWillBeNoLoops(adjCell, cell) ) {
 					if ( !wallExistsBetweenCells(adjCell, cell) ) {
 						if ( opened.contains(adjCell) ) {
 							// if adj cell is in open list, check if current path is
@@ -332,15 +345,33 @@ class AStar {
 							trace(adjCell.x, adjCell.y, cell.parent == cell);
 						}
 					} else {
+						// the adjCell is located over the wall
 						// we wont break walls after our energy runs out
 						if ( cell.g + 10 < energy ) {
 							// we mark cells that are behind walls to crush them later if needed
 							var potentialF = Std.int(getHeuristic(adjCell)) + cell.g + 10;
-							if ( adjCell.potentialF == 0 || adjCell.potentialF > potentialF ) {
+							if ( adjCell.potentialF == 0 ) {
 								adjCell.potentialG = cell.g + 10;
 								adjCell.potentialF = potentialF;
 								adjCell.wallbreakingParent = cell;
+								adjCell.wallsDestroyed = cell.wallsDestroyed;
 								behindWalls.push(adjCell);
+
+								// var textField = new openfl.text.TextField();
+								// // all your stuff on the textField
+								// textField.text = "ZHOPA";
+
+								// var textFieldBitmapData = new openfl.display.BitmapData(Std.int(textField.width), Std.int(textField.height), true, 0x000000);
+								// textFieldBitmapData.draw(textField);
+
+								// var textFieldBitmap = new openfl.display.Bitmap(textFieldBitmapData);
+								// textFieldBitmap.smoothing = true;
+								// textFieldBitmap.x = adjCell.x * Game.inst.maze.cellSize;
+								// textFieldBitmap.y = adjCell.y * Game.inst.maze.cellSize;
+
+								// @:privateAccess {
+								// 	Game.inst.heroPath.addChild(textFieldBitmap);
+								// }
 							}
 						}
 					}
