@@ -74,8 +74,6 @@ class Game {
 			case Keyboard.SHIFT:
 				controlStatus = HeroTransfer;
 			case Keyboard.CONTROL:
-				trace("zhopa");
-
 				controlStatus = WallEdit;
 			default:
 		}

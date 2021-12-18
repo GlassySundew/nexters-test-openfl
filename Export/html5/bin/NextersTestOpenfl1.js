@@ -173,14 +173,14 @@ AStar.prototype = {
 			var _g = 0;
 			var _g1 = this.opened;
 			while(_g < _g1.length) {
-				var i = _g1[_g];
+				var openedCell = _g1[_g];
 				++_g;
 				if(cell == null) {
-					cell = i;
+					cell = openedCell;
 					continue;
 				}
-				if(cell.f > i.f) {
-					cell = i;
+				if(cell.f > openedCell.f) {
+					cell = openedCell;
 				}
 			}
 			HxOverrides.remove(this.opened,cell);
@@ -190,7 +190,7 @@ AStar.prototype = {
 			}
 			while((cell.g >= this.energy + 10 || this.opened.length == 0) && this.behindWalls.length > 0 && cell.wallsDestroyed < this.sledgehammerUses) {
 				var cellBehindWall = null;
-				while(this.behindWalls.length > 0 && (cellBehindWall == null || cellBehindWall.g >= this.energy)) {
+				while(this.behindWalls.length > 0 && (cellBehindWall == null || cellBehindWall.g > this.energy)) {
 					var _g2 = 0;
 					var _g3 = this.behindWalls;
 					while(_g2 < _g3.length) {
@@ -233,17 +233,19 @@ AStar.prototype = {
 			while(_g4 < adjCells.length) {
 				var adjCell = adjCells[_g4];
 				++_g4;
-				if((!this.closed.has(adjCell) || cell.g < adjCell.g - 30) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
+				if((!this.closed.has(adjCell) || cell.g < adjCell.g - 40) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
 					if(!this.wallExistsBetweenCells(adjCell,cell)) {
-						if(this.opened.indexOf(adjCell) == -1) {
+						if(this.opened.indexOf(adjCell) != -1) {
+							if(adjCell.g > cell.g + 10) {
+								this.updateCell(adjCell,cell);
+							}
+						} else {
 							this.opened.push(adjCell);
-							this.updateCell(adjCell,cell);
-						} else if(adjCell.g > cell.g + 10) {
 							this.updateCell(adjCell,cell);
 						}
 					} else if(cell.g + 10 < this.energy) {
 						var potentialF = (10 * (Math.abs(adjCell.x - this.end.x) + Math.abs(adjCell.y - this.end.y)) | 0) + cell.g + 10;
-						if(adjCell.potentialF == 0) {
+						if(adjCell.potentialF == 0 || adjCell.potentialF > potentialF) {
 							adjCell.potentialG = cell.g + 10;
 							adjCell.potentialF = potentialF;
 							adjCell.wallbreakingParent = cell;
@@ -1162,7 +1164,7 @@ ApplicationMain.main = function() {
 ApplicationMain.create = function(config) {
 	var app = new openfl_display_Application();
 	ManifestResources.init(config);
-	app.meta.h["build"] = "4";
+	app.meta.h["build"] = "5";
 	app.meta.h["company"] = "Company Name";
 	app.meta.h["file"] = "NextersTestOpenfl1";
 	app.meta.h["name"] = "NextersTestOpenfl1";
@@ -4262,7 +4264,6 @@ Game.prototype = {
 			this.controlStatus = ControlStatus.HeroTransfer;
 			break;
 		case 17:
-			haxe_Log.trace("zhopa",{ fileName : "Source/Game.hx", lineNumber : 77, className : "Game", methodName : "keyDown"});
 			this.controlStatus = ControlStatus.WallEdit;
 			break;
 		default:

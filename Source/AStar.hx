@@ -200,13 +200,13 @@ class AStar {
 				// 	start++;
 				// }
 
-				for ( i in opened ) {
+				for ( openedCell in opened ) {
 					if ( cell == null ) {
-						cell = i;
+						cell = openedCell;
 						continue;
 					}
-					if ( cell.f > i.f )
-						cell = i;
+					if ( cell.f > openedCell.f )
+						cell = openedCell;
 				}
 				opened.remove(cell);
 			}
@@ -218,7 +218,10 @@ class AStar {
 				return displayPath();
 			}
 
-			while( (cell.g >= energy + 10 || opened.length == 0) && behindWalls.length > 0 && cell.wallsDestroyed < sledgehammerUses ) {
+			while( (cell.g >= energy + 10 || opened.length == 0)
+				&& behindWalls.length > 0
+				&& cell.wallsDestroyed < sledgehammerUses ) {
+
 				var cellBehindWall = null;
 
 				// возвращает самую выгодную ячейку, в которую можно перейти, сломав стену
@@ -226,7 +229,7 @@ class AStar {
 					behindWalls.length > 0
 					&& (
 						cellBehindWall == null
-						|| cellBehindWall.g >= energy
+						|| cellBehindWall.g > energy
 					) ) {
 
 						// получаем стену, которую будет выгоднее всего будет сломать
@@ -239,8 +242,8 @@ class AStar {
 								wall.potentialF < wall.f
 								&& wall.wallsDestroyed < sledgehammerUses
 								&& wall.wallbreakingParent.wallsDestroyed < sledgehammerUses
-								&& wall.f - wall.potentialF > cellBehindWall.f - cellBehindWall.potentialF )
-
+								&& wall.f - wall.potentialF > cellBehindWall.f - cellBehindWall.potentialF
+							)
 								cellBehindWall = wall;
 						}
 
@@ -283,18 +286,17 @@ class AStar {
 			var adjCells = getAdjacentCells(cell);
 
 			for ( adjCell in adjCells ) {
-				if ( (!closed.has(adjCell)
-					|| cell.g < adjCell.g - 30)
+				if ( (!closed.has(adjCell) || cell.g < adjCell.g - 40)
 					&& ensureThereWillBeNoLoops(adjCell, cell) ) {
 
 					if ( !wallExistsBetweenCells(adjCell, cell) ) {
-						if ( !opened.contains(adjCell) ) {
-							opened.push(adjCell);
-							updateCell(adjCell, cell);
-						}
-						else {
+						if ( opened.contains(adjCell) ) {
 							if ( adjCell.g > cell.g + 10 )
 								updateCell(adjCell, cell);
+						} else {
+							// if ( cell.g < energy + 10 || behindWalls.length <= 0 )
+								opened.push(adjCell);
+							updateCell(adjCell, cell);
 						}
 					} else {
 						// the adjCell is located over the wall
@@ -303,7 +305,7 @@ class AStar {
 						if ( cell.g + 10 < energy ) {
 							// we mark cells that are behind walls to crush them later if needed
 							var potentialF = Std.int(getHeuristic(adjCell)) + cell.g + 10;
-							if ( adjCell.potentialF == 0 ) {
+							if ( adjCell.potentialF == 0 || adjCell.potentialF > potentialF ) {
 								adjCell.potentialG = cell.g + 10;
 								adjCell.potentialF = potentialF;
 								adjCell.wallbreakingParent = cell;
