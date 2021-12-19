@@ -194,7 +194,7 @@ AStar.prototype = {
 					while(_g2 < _g3.length) {
 						var wall = _g3[_g2];
 						++_g2;
-						if(wall.f - wall.potentialF < 30 && wall.f != 0 && this.opened.length > 0 || wall.wallsDestroyed >= this.sledgehammerUses) {
+						if(wall.f - wall.potentialF < 20 && wall.f != 0 && this.opened.length > 0 || wall.wallsDestroyed > this.sledgehammerUses) {
 							HxOverrides.remove(this.behindWalls,wall);
 							continue;
 						}
@@ -238,7 +238,7 @@ AStar.prototype = {
 			while(_g4 < adjCells.length) {
 				var adjCell = adjCells[_g4];
 				++_g4;
-				if((!this.closed.has(adjCell) || cell.g < adjCell.g - 30) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
+				if((!this.closed.has(adjCell) || cell.g < adjCell.g - 20) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
 					if(!this.wallExistsBetweenCells(adjCell,cell)) {
 						if(this.opened.indexOf(adjCell) != -1) {
 							this.updateCell(adjCell,cell);
@@ -246,7 +246,7 @@ AStar.prototype = {
 							this.opened.push(adjCell);
 							this.updateCell(adjCell,cell);
 						}
-					} else if(cell.g + 10 < this.energy && cell.wallsDestroyed < this.sledgehammerUses - 1) {
+					} else if(cell.g < this.energy && cell.wallsDestroyed < this.sledgehammerUses - 1) {
 						var potentialF = (10 * (Math.abs(adjCell.x - this.end.x) + Math.abs(adjCell.y - this.end.y)) | 0) + cell.g + 10;
 						if(adjCell.potentialF == 0 || adjCell.potentialF > potentialF) {
 							adjCell.potentialF = potentialF;
@@ -1166,7 +1166,7 @@ ApplicationMain.main = function() {
 ApplicationMain.create = function(config) {
 	var app = new openfl_display_Application();
 	ManifestResources.init(config);
-	app.meta.h["build"] = "7";
+	app.meta.h["build"] = "8";
 	app.meta.h["company"] = "Company Name";
 	app.meta.h["file"] = "NextersTestOpenfl1";
 	app.meta.h["name"] = "NextersTestOpenfl1";

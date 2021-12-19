@@ -144,10 +144,8 @@ class AStar {
 			if ( parent == adjCell ) {
 				return false;
 			}
-			// trace(parent.x, parent.y);
 			parent = parent.parent;
 		}
-		// trace("leaving");
 
 		return true;
 	}
@@ -177,11 +175,11 @@ class AStar {
 
 		Моё решение: мы обходим граф лабиринта по A*, и во все клетки, находящиеся
 		за стеной, пишем их потенциальное F, чтобы потом, когда закончатся клетки в opened, 
-		мы начали ломать стены, образующие самые выгодные срезы, таким образом, чтобы их разница
-		между f и potentialF была наивысшей, при этом перерасчитывая все клетки, даже те, что уже в closed,
+		мы начали ломать стены с наименьшим potencialF 
+		, при этом перерасчитывая все клетки, даже те, что уже в closed,
 		с тем условием, если g стоимость была выше в соседней клетке
 
-		путь иногда находится криво и может не считать стены
+		путь иногда находится криво и может не считать стены, 
 	**/
 	public function findPath() {
 
@@ -232,8 +230,8 @@ class AStar {
 					) ) {
 
 						for ( wall in behindWalls.copy() ) {
-							if ( (wall.f - wall.potentialF < 30 && wall.f != 0 && opened.length > 0)
-								|| wall.wallsDestroyed >= sledgehammerUses ) {
+							if ( (wall.f - wall.potentialF < 20 && wall.f != 0 && opened.length > 0)
+								|| wall.wallsDestroyed > sledgehammerUses ) {
 								behindWalls.remove(wall);
 								continue;
 							}
@@ -243,7 +241,6 @@ class AStar {
 							}
 							if ( cellBehindWall.potentialF > wall.potentialF )
 								cellBehindWall = wall;
-							
 						}
 
 						if ( cellBehindWall != null && !ensureThereWillBeNoLoops(cellBehindWall, cellBehindWall.wallbreakingParent) ) {
@@ -253,8 +250,6 @@ class AStar {
 
 						if ( cellBehindWall != null && !behindWalls.remove(cellBehindWall) ) break;
 				}
-
-				
 
 				if ( cellBehindWall != null ) {
 
@@ -283,7 +278,7 @@ class AStar {
 			for ( adjCell in adjCells ) {
 
 				// "cell.g < adjCell.g - 20" - чтобы снова проходить тот же путь, но уже через сломанную стену
-				if ( (!closed.has(adjCell) || cell.g < adjCell.g - 30)
+				if ( (!closed.has(adjCell) || cell.g < adjCell.g - 20)
 					&& ensureThereWillBeNoLoops(adjCell, cell) ) {
 
 					if ( !wallExistsBetweenCells(adjCell, cell) ) {
@@ -299,7 +294,7 @@ class AStar {
 						// the adjCell is located over the wall
 						// we wont break walls after our energy runs out
 
-						if ( cell.g + 10 < energy && cell.wallsDestroyed < sledgehammerUses - 1 ) {
+						if ( cell.g < energy && cell.wallsDestroyed < sledgehammerUses - 1 ) {
 							// we mark cells that are behind walls to crush them later if needed
 							var potentialF = Std.int(getHeuristic(adjCell)) + cell.g + 10;
 							if ( adjCell.potentialF == 0 || adjCell.potentialF > potentialF ) {

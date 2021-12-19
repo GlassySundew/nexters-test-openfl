@@ -168,7 +168,6 @@ class Game {
 		maze.graphics.clear();
 		if ( heroPath != null ) heroPath.graphics.clear();
 		maze = null;
-		hero = null;
 
 		Main.inst.removeEventListener(KeyboardEvent.KEY_DOWN, keyDown);
 		Main.inst.removeEventListener(KeyboardEvent.KEY_UP, keyUp);
