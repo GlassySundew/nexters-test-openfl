@@ -194,7 +194,7 @@ AStar.prototype = {
 					while(_g2 < _g3.length) {
 						var wall = _g3[_g2];
 						++_g2;
-						if(wall.f - wall.potentialF < 20 && wall.f != 0 && this.opened.length > 0 || wall.wallsDestroyed > this.sledgehammerUses) {
+						if(wall.f - wall.potentialF < 20 && wall.f != 0 && this.opened.length > 0 || wall.wallsDestroyed >= this.sledgehammerUses) {
 							HxOverrides.remove(this.behindWalls,wall);
 							continue;
 						}
@@ -1166,7 +1166,7 @@ ApplicationMain.main = function() {
 ApplicationMain.create = function(config) {
 	var app = new openfl_display_Application();
 	ManifestResources.init(config);
-	app.meta.h["build"] = "8";
+	app.meta.h["build"] = "9";
 	app.meta.h["company"] = "Company Name";
 	app.meta.h["file"] = "NextersTestOpenfl1";
 	app.meta.h["name"] = "NextersTestOpenfl1";
@@ -4349,7 +4349,6 @@ Game.prototype = {
 			this.heroPath.get_graphics().clear();
 		}
 		this.maze = null;
-		this.hero = null;
 		Main.inst.removeEventListener("keyDown",$bind(this,this.keyDown));
 		Main.inst.removeEventListener("keyUp",$bind(this,this.keyUp));
 	}
@@ -45043,7 +45042,7 @@ var lime_utils_AssetCache = function() {
 	this.audio = new haxe_ds_StringMap();
 	this.font = new haxe_ds_StringMap();
 	this.image = new haxe_ds_StringMap();
-	this.version = 740969;
+	this.version = 470956;
 };
 $hxClasses["lime.utils.AssetCache"] = lime_utils_AssetCache;
 lime_utils_AssetCache.__name__ = "lime.utils.AssetCache";

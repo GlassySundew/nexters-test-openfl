@@ -231,7 +231,7 @@ class AStar {
 
 						for ( wall in behindWalls.copy() ) {
 							if ( (wall.f - wall.potentialF < 20 && wall.f != 0 && opened.length > 0)
-								|| wall.wallsDestroyed > sledgehammerUses ) {
+								|| wall.wallsDestroyed >= sledgehammerUses ) {
 								behindWalls.remove(wall);
 								continue;
 							}
