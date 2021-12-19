@@ -16,7 +16,6 @@ class Cell {
 	public var h : Int;
 	public var f : Int;
 	public var potentialF : Int;
-	public var potentialG : Int;
 	public var parent : Cell;
 	public var wallsDestroyed : Int;
 	public var wallbreakingParent : Cell;
@@ -28,7 +27,6 @@ class Cell {
 		this.h = 0;
 		this.f = 0;
 		this.potentialF = 0;
-		this.potentialG = 0;
 		this.wallsDestroyed = 0;
 	}
 }
@@ -178,17 +176,19 @@ class AStar {
 		should only be called once per AStar instance
 
 		Моё решение: мы обходим граф лабиринта по A*, и во все клетки, находящиеся
-		за стеной, пишем их потенциальное G, чтобы потом, когда закончатся клетки в opened, 
-		мы начали ломать стены, образующие самые выгодные срезы, таким образом, чтобы из разница
+		за стеной, пишем их потенциальное F, чтобы потом, когда закончатся клетки в opened, 
+		мы начали ломать стены, образующие самые выгодные срезы, таким образом, чтобы их разница
 		между f и potentialF была наивысшей, при этом перерасчитывая все клетки, даже те, что уже в closed,
 		с тем условием, чтобы g стоимость была выше в соседней клетке
 
-		p.s. совсем недавно понял, что надо приступать к ломанию стен только тогда, когда в opened уже не 
-		осталось клеток 
+		моё решение не работает: количество сломанных стен 
 	**/
 	public function findPath() {
+		indexAllMap();
+
 		opened.push(start);
-		while( opened.length > 0 ) {
+		// "behindWalls.length > 0" чтобы сломать стены, даже если персонаж замурован в 1 клетке
+		while( opened.length > 0 || behindWalls.length > 0 ) {
 
 			var cell = null;
 			// heapify opened array
@@ -208,19 +208,21 @@ class AStar {
 					if ( cell.f > openedCell.f )
 						cell = openedCell;
 				}
-				opened.remove(cell);
 			}
 
 			// var cell = opened.pop();
-			closed.add(cell);
 
 			if ( cell == end ) {
 				return displayPath();
 			}
 
-			while( (cell.g >= energy + 10 || opened.length == 0)
+			opened.remove(cell);
+			closed.add(cell);
+
+			// если клетка null, то до выхода нельзя добраться, не сломав стену
+			while( (cell == null || cell.g >= energy)
 				&& behindWalls.length > 0
-				&& cell.wallsDestroyed < sledgehammerUses ) {
+			) {
 
 				var cellBehindWall = null;
 
@@ -232,26 +234,24 @@ class AStar {
 						|| cellBehindWall.g > energy
 					) ) {
 
-						// получаем стену, которую будет выгоднее всего будет сломать
-						for ( wall in behindWalls ) {
+						for ( wall in behindWalls.copy() ) {
+							if ( wall.f < wall.potentialF && opened.length > 0 ) {
+								behindWalls.remove(wall);
+								continue;
+							}
 							if ( cellBehindWall == null ) {
 								cellBehindWall = wall;
 								continue;
 							}
 							if (
-								wall.potentialF < wall.f
-								&& wall.wallsDestroyed < sledgehammerUses
-								&& wall.wallbreakingParent.wallsDestroyed < sledgehammerUses
+								wall.f - wall.potentialF > 0
+								&& wall.potentialF < wall.f
 								&& wall.f - wall.potentialF > cellBehindWall.f - cellBehindWall.potentialF
 							)
 								cellBehindWall = wall;
 						}
 
-						if ( (cellBehindWall.wallbreakingParent.parent != null
-							&& !ensureThereWillBeNoLoops(cellBehindWall, cellBehindWall.wallbreakingParent))
-							|| (cellBehindWall.wallbreakingParent.wallsDestroyed >= sledgehammerUses
-								|| cellBehindWall.wallsDestroyed >= sledgehammerUses) ) {
-
+						if ( cellBehindWall != null && !ensureThereWillBeNoLoops(cellBehindWall, cellBehindWall.wallbreakingParent) ) {
 							behindWalls.remove(cellBehindWall);
 							cellBehindWall = null;
 						}
@@ -259,23 +259,18 @@ class AStar {
 						if ( cellBehindWall != null && !behindWalls.remove(cellBehindWall) ) break;
 				}
 
-				if ( cellBehindWall != null
-					&& cellBehindWall.wallbreakingParent.wallsDestroyed < sledgehammerUses
-					&& cellBehindWall.wallsDestroyed < sledgehammerUses ) {
+				if ( cellBehindWall != null ) {
+					trace("breaking wall in cell " + cellBehindWall.x,
+						cellBehindWall.y, "from " + cellBehindWall.wallbreakingParent.x,
+						cellBehindWall.wallbreakingParent.y,
+						"with differ: ", cellBehindWall.f - cellBehindWall.potentialF);
 
 					opened.push(cell);
-					closed.delete(cell);
-
 					cell = cellBehindWall;
-
 					updateCell(cell, cell.wallbreakingParent);
 					cell.wallsDestroyed++;
 
-					var parent = cell.parent;
-					while( parent != null ) {
-						parent.wallsDestroyed = cell.wallsDestroyed;
-						parent = parent.parent;
-					}
+					break;
 				}
 			}
 
@@ -286,27 +281,28 @@ class AStar {
 			var adjCells = getAdjacentCells(cell);
 
 			for ( adjCell in adjCells ) {
-				if ( (!closed.has(adjCell) || cell.g < adjCell.g - 40)
+
+				// "cell.g < adjCell.g - 20" - чтобы снова проходить тот же путь, но уже через сломанную стену
+				if ( (!closed.has(adjCell) || cell.g < adjCell.g - 20)
 					&& ensureThereWillBeNoLoops(adjCell, cell) ) {
 
 					if ( !wallExistsBetweenCells(adjCell, cell) ) {
 						if ( opened.contains(adjCell) ) {
-							if ( adjCell.g > cell.g + 10 )
-								updateCell(adjCell, cell);
+							// if ( adjCell.g > cell.g + 10 )
+							updateCell(adjCell, cell);
 						} else {
-							// if ( cell.g < energy + 10 || behindWalls.length <= 0 )
-								opened.push(adjCell);
+							// if ( cell.g < energy + 10 || behindWalls.length <= 1 )
+							opened.push(adjCell);
 							updateCell(adjCell, cell);
 						}
 					} else {
 						// the adjCell is located over the wall
 						// we wont break walls after our energy runs out
 
-						if ( cell.g + 10 < energy ) {
+						if ( cell.g + 10 < energy && cell.wallsDestroyed < sledgehammerUses - 1 ) {
 							// we mark cells that are behind walls to crush them later if needed
 							var potentialF = Std.int(getHeuristic(adjCell)) + cell.g + 10;
 							if ( adjCell.potentialF == 0 || adjCell.potentialF > potentialF ) {
-								adjCell.potentialG = cell.g + 10;
 								adjCell.potentialF = potentialF;
 								adjCell.wallbreakingParent = cell;
 								adjCell.wallsDestroyed = cell.wallsDestroyed;
@@ -319,5 +315,11 @@ class AStar {
 		}
 
 		return null;
+	}
+
+	function indexAllMap() {
+		// opened.push(start);
+
+
 	}
 }

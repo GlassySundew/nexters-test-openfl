@@ -15,7 +15,6 @@ var Cell = function(x,y) {
 	this.h = 0;
 	this.f = 0;
 	this.potentialF = 0;
-	this.potentialG = 0;
 	this.wallsDestroyed = 0;
 };
 $hxClasses["Cell"] = Cell;
@@ -27,7 +26,6 @@ Cell.prototype = {
 	,h: null
 	,f: null
 	,potentialF: null
-	,potentialG: null
 	,parent: null
 	,wallsDestroyed: null
 	,wallbreakingParent: null
@@ -168,7 +166,7 @@ AStar.prototype = {
 	}
 	,findPath: function() {
 		this.opened.push(this.start);
-		while(this.opened.length > 0) {
+		while(this.opened.length > 0 || this.behindWalls.length > 0) {
 			var cell = null;
 			var _g = 0;
 			var _g1 = this.opened;
@@ -183,28 +181,32 @@ AStar.prototype = {
 					cell = openedCell;
 				}
 			}
-			HxOverrides.remove(this.opened,cell);
-			this.closed.add(cell);
 			if(cell == this.end) {
 				return this.displayPath();
 			}
-			while((cell.g >= this.energy + 10 || this.opened.length == 0) && this.behindWalls.length > 0 && cell.wallsDestroyed < this.sledgehammerUses) {
+			HxOverrides.remove(this.opened,cell);
+			this.closed.add(cell);
+			while((cell == null || cell.g >= this.energy) && this.behindWalls.length > 0) {
 				var cellBehindWall = null;
 				while(this.behindWalls.length > 0 && (cellBehindWall == null || cellBehindWall.g > this.energy)) {
 					var _g2 = 0;
-					var _g3 = this.behindWalls;
+					var _g3 = this.behindWalls.slice();
 					while(_g2 < _g3.length) {
 						var wall = _g3[_g2];
 						++_g2;
+						if(wall.f < wall.potentialF && this.opened.length > 0) {
+							HxOverrides.remove(this.behindWalls,wall);
+							continue;
+						}
 						if(cellBehindWall == null) {
 							cellBehindWall = wall;
 							continue;
 						}
-						if(wall.potentialF < wall.f && wall.wallsDestroyed < this.sledgehammerUses && wall.wallbreakingParent.wallsDestroyed < this.sledgehammerUses && wall.f - wall.potentialF > cellBehindWall.f - cellBehindWall.potentialF) {
+						if(wall.f - wall.potentialF > 0 && wall.potentialF < wall.f && wall.f - wall.potentialF > cellBehindWall.f - cellBehindWall.potentialF) {
 							cellBehindWall = wall;
 						}
 					}
-					if(cellBehindWall.wallbreakingParent.parent != null && !this.ensureThereWillBeNoLoops(cellBehindWall,cellBehindWall.wallbreakingParent) || (cellBehindWall.wallbreakingParent.wallsDestroyed >= this.sledgehammerUses || cellBehindWall.wallsDestroyed >= this.sledgehammerUses)) {
+					if(cellBehindWall != null && !this.ensureThereWillBeNoLoops(cellBehindWall,cellBehindWall.wallbreakingParent)) {
 						HxOverrides.remove(this.behindWalls,cellBehindWall);
 						cellBehindWall = null;
 					}
@@ -212,17 +214,13 @@ AStar.prototype = {
 						break;
 					}
 				}
-				if(cellBehindWall != null && cellBehindWall.wallbreakingParent.wallsDestroyed < this.sledgehammerUses && cellBehindWall.wallsDestroyed < this.sledgehammerUses) {
+				if(cellBehindWall != null) {
+					haxe_Log.trace("breaking wall in cell " + cellBehindWall.x,{ fileName : "Source/AStar.hx", lineNumber : 261, className : "AStar", methodName : "findPath", customParams : [cellBehindWall.y,"from " + cellBehindWall.wallbreakingParent.x,cellBehindWall.wallbreakingParent.y,"with differ: ",cellBehindWall.f - cellBehindWall.potentialF]});
 					this.opened.push(cell);
-					this.closed.delete(cell);
 					cell = cellBehindWall;
 					this.updateCell(cell,cell.wallbreakingParent);
 					cell.wallsDestroyed++;
-					var parent = cell.parent;
-					while(parent != null) {
-						parent.wallsDestroyed = cell.wallsDestroyed;
-						parent = parent.parent;
-					}
+					break;
 				}
 			}
 			if(cell == this.end) {
@@ -233,20 +231,17 @@ AStar.prototype = {
 			while(_g4 < adjCells.length) {
 				var adjCell = adjCells[_g4];
 				++_g4;
-				if((!this.closed.has(adjCell) || cell.g < adjCell.g - 40) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
+				if((!this.closed.has(adjCell) || cell.g < adjCell.g - 20) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
 					if(!this.wallExistsBetweenCells(adjCell,cell)) {
 						if(this.opened.indexOf(adjCell) != -1) {
-							if(adjCell.g > cell.g + 10) {
-								this.updateCell(adjCell,cell);
-							}
+							this.updateCell(adjCell,cell);
 						} else {
 							this.opened.push(adjCell);
 							this.updateCell(adjCell,cell);
 						}
-					} else if(cell.g + 10 < this.energy) {
+					} else if(cell.g + 10 < this.energy && cell.wallsDestroyed < this.sledgehammerUses - 1) {
 						var potentialF = (10 * (Math.abs(adjCell.x - this.end.x) + Math.abs(adjCell.y - this.end.y)) | 0) + cell.g + 10;
 						if(adjCell.potentialF == 0 || adjCell.potentialF > potentialF) {
-							adjCell.potentialG = cell.g + 10;
 							adjCell.potentialF = potentialF;
 							adjCell.wallbreakingParent = cell;
 							adjCell.wallsDestroyed = cell.wallsDestroyed;
@@ -1164,7 +1159,7 @@ ApplicationMain.main = function() {
 ApplicationMain.create = function(config) {
 	var app = new openfl_display_Application();
 	ManifestResources.init(config);
-	app.meta.h["build"] = "5";
+	app.meta.h["build"] = "6";
 	app.meta.h["company"] = "Company Name";
 	app.meta.h["file"] = "NextersTestOpenfl1";
 	app.meta.h["name"] = "NextersTestOpenfl1";
@@ -24884,13 +24879,13 @@ haxe_ui_styles_elements_RuleElement.prototype = {
 					var value = new haxe_ui_styles_elements_Directive("font-bold",haxe_ui_styles_Value.VBool(true));
 					this1.h["font-bold"] = value;
 				} else if(s == "italic") {
-					var this11 = this.directives;
+					var this2 = this.directives;
 					var value1 = new haxe_ui_styles_elements_Directive("font-italic",haxe_ui_styles_Value.VBool(true));
-					this11.h["font-italic"] = value1;
+					this2.h["font-italic"] = value1;
 				} else if(s == "underline") {
-					var this12 = this.directives;
+					var this3 = this.directives;
 					var value2 = new haxe_ui_styles_elements_Directive("font-underline",haxe_ui_styles_Value.VBool(true));
-					this12.h["font-underline"] = value2;
+					this3.h["font-underline"] = value2;
 				}
 			}
 			break;
@@ -28942,10 +28937,10 @@ lime__$internal_backend_html5_HTML5HTTPRequest.prototype = {
 				var value = this.parent.formData.h[key];
 				if(key.indexOf("[]") > -1 && ((value) instanceof Array)) {
 					var _g = [];
-					var x1 = $getIterator(value);
-					while(x1.hasNext()) {
-						var x11 = x1.next();
-						_g.push(encodeURIComponent(x11));
+					var x = $getIterator(value);
+					while(x.hasNext()) {
+						var x1 = x.next();
+						_g.push(encodeURIComponent(x1));
 					}
 					var arrayValue = _g.join("&amp;" + key + "=");
 					query += encodeURIComponent(key) + "=" + arrayValue;
@@ -32316,8 +32311,8 @@ lime__$internal_graphics_ImageDataUtil.getPixels = function(image,rect,format) {
 				pixel = argb;
 				break;
 			case 2:
-				var this11 = 0;
-				var bgra1 = this11;
+				var this2 = 0;
+				var bgra1 = this2;
 				bgra1 = (pixel >>> 8 & 255 & 255) << 24 | (pixel >>> 16 & 255 & 255) << 16 | (pixel >>> 24 & 255 & 255) << 8 | pixel & 255 & 255;
 				bgra = bgra1;
 				pixel = bgra;
@@ -32966,8 +32961,8 @@ lime__$internal_graphics_ImageDataUtil.setPixels = function(image,rect,bytePoint
 				break;
 			case 2:
 				var bgra = color;
-				var this11 = 0;
-				var rgba1 = this11;
+				var this2 = 0;
+				var rgba1 = this2;
 				rgba1 = (bgra >>> 8 & 255 & 255) << 24 | (bgra >>> 16 & 255 & 255) << 16 | (bgra >>> 24 & 255 & 255) << 8 | bgra & 255 & 255;
 				pixel = rgba1;
 				break;
@@ -45038,7 +45033,7 @@ var lime_utils_AssetCache = function() {
 	this.audio = new haxe_ds_StringMap();
 	this.font = new haxe_ds_StringMap();
 	this.image = new haxe_ds_StringMap();
-	this.version = 662090;
+	this.version = 740969;
 };
 $hxClasses["lime.utils.AssetCache"] = lime_utils_AssetCache;
 lime_utils_AssetCache.__name__ = "lime.utils.AssetCache";
@@ -82980,9 +82975,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.f = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.f = this_low;
 	var b = 56;
 	b &= 63;
 	var a;
@@ -82998,9 +82993,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.m = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.m = this_low;
 	var b = 52;
 	b &= 63;
 	var a;
@@ -83016,9 +83011,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.w = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.w = this_low;
 	var b = 48;
 	b &= 63;
 	var a;
@@ -83034,9 +83029,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.s = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.s = this_low;
 	var b = 44;
 	b &= 63;
 	var a;
@@ -83052,9 +83047,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.d = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.d = this_low;
 	var b = 40;
 	b &= 63;
 	var a;
@@ -83070,9 +83065,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.t = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.t = this_low;
 	var b = 32;
 	b &= 63;
 	var a;
@@ -83088,9 +83083,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.type = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.type = this_low;
 	var b = 16;
 	b &= 63;
 	var a;
@@ -83106,14 +83101,14 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 255;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.b = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.b = this_low;
 	var b_high = 0;
 	var b_low = 65535;
-	var this1_high = v.high & b_high;
-	var this1_low = v.low & b_low;
-	sr.n = this1_low;
+	var this_high = v.high & b_high;
+	var this_low = v.low & b_low;
+	sr.n = this_low;
 	return sr;
 };
 openfl_display3D__$internal__$AGALConverter_SamplerRegister.prototype = {
@@ -83198,9 +83193,9 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 1;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.d = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.d = this_low;
 	var b = 48;
 	b &= 63;
 	var a;
@@ -83216,9 +83211,9 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 3;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.q = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.q = this_low;
 	var b = 40;
 	b &= 63;
 	var a;
@@ -83234,9 +83229,9 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.itype = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.itype = this_low;
 	var b = 32;
 	b &= 63;
 	var a;
@@ -83252,9 +83247,9 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.type = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.type = this_low;
 	var b = 24;
 	b &= 63;
 	var a;
@@ -83270,9 +83265,9 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 255;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.s = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.s = this_low;
 	var b = 16;
 	b &= 63;
 	var a;
@@ -83288,14 +83283,14 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 255;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.o = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.o = this_low;
 	var b_high = 0;
 	var b_low = 65535;
-	var this1_high = v.high & b_high;
-	var this1_low = v.low & b_low;
-	sr.n = this1_low;
+	var this_high = v.high & b_high;
+	var this_low = v.low & b_low;
+	sr.n = this_low;
 	sr.sourceMask = sourceMask;
 	return sr;
 };
