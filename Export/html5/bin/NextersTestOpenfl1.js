@@ -194,7 +194,7 @@ AStar.prototype = {
 					while(_g2 < _g3.length) {
 						var wall = _g3[_g2];
 						++_g2;
-						if(wall.f < wall.potentialF && this.opened.length > 0) {
+						if(wall.f - wall.potentialF < 30 && wall.f != 0 && this.opened.length > 0 || wall.wallsDestroyed >= this.sledgehammerUses) {
 							HxOverrides.remove(this.behindWalls,wall);
 							continue;
 						}
@@ -202,7 +202,7 @@ AStar.prototype = {
 							cellBehindWall = wall;
 							continue;
 						}
-						if(wall.f - wall.potentialF > 0 && wall.potentialF < wall.f && wall.f - wall.potentialF > cellBehindWall.f - cellBehindWall.potentialF) {
+						if(cellBehindWall.potentialF > wall.potentialF) {
 							cellBehindWall = wall;
 						}
 					}
@@ -215,23 +215,30 @@ AStar.prototype = {
 					}
 				}
 				if(cellBehindWall != null) {
-					haxe_Log.trace("breaking wall in cell " + cellBehindWall.x,{ fileName : "Source/AStar.hx", lineNumber : 261, className : "AStar", methodName : "findPath", customParams : [cellBehindWall.y,"from " + cellBehindWall.wallbreakingParent.x,cellBehindWall.wallbreakingParent.y,"with differ: ",cellBehindWall.f - cellBehindWall.potentialF]});
 					this.opened.push(cell);
 					cell = cellBehindWall;
 					this.updateCell(cell,cell.wallbreakingParent);
 					cell.wallsDestroyed++;
+					var parent = cell.parent;
+					while(parent != null) {
+						parent.wallsDestroyed = cell.wallsDestroyed;
+						parent = parent.parent;
+					}
 					break;
 				}
 			}
 			if(cell == this.end) {
 				return this.displayPath();
 			}
+			if(cell == null) {
+				return null;
+			}
 			var adjCells = this.getAdjacentCells(cell);
 			var _g4 = 0;
 			while(_g4 < adjCells.length) {
 				var adjCell = adjCells[_g4];
 				++_g4;
-				if((!this.closed.has(adjCell) || cell.g < adjCell.g - 20) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
+				if((!this.closed.has(adjCell) || cell.g < adjCell.g - 30) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
 					if(!this.wallExistsBetweenCells(adjCell,cell)) {
 						if(this.opened.indexOf(adjCell) != -1) {
 							this.updateCell(adjCell,cell);
@@ -1159,7 +1166,7 @@ ApplicationMain.main = function() {
 ApplicationMain.create = function(config) {
 	var app = new openfl_display_Application();
 	ManifestResources.init(config);
-	app.meta.h["build"] = "6";
+	app.meta.h["build"] = "7";
 	app.meta.h["company"] = "Company Name";
 	app.meta.h["file"] = "NextersTestOpenfl1";
 	app.meta.h["name"] = "NextersTestOpenfl1";
@@ -4310,6 +4317,8 @@ Game.prototype = {
 			}
 			this.hero.pathCache = path;
 			this.maze.displayTooltip((path[path.length - 1].x + 2) * this.maze.cellSize,path[path.length - 1].y * this.maze.cellSize,"cost: " + (path.length - 1));
+		} else {
+			haxe_Log.trace("was not able to find path",{ fileName : "Source/Game.hx", lineNumber : 136, className : "Game", methodName : "getPathPreviewFromHero"});
 		}
 		this.heroPath.get_graphics().endFill();
 	}
@@ -4340,6 +4349,7 @@ Game.prototype = {
 			this.heroPath.get_graphics().clear();
 		}
 		this.maze = null;
+		this.hero = null;
 		Main.inst.removeEventListener("keyDown",$bind(this,this.keyDown));
 		Main.inst.removeEventListener("keyUp",$bind(this,this.keyUp));
 	}

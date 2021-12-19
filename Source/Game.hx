@@ -133,7 +133,7 @@ class Game {
 				(path[path.length - 1].x + 2) * maze.cellSize,
 				path[path.length - 1].y * maze.cellSize,
 				'cost: ${path.length - 1}');
-		}
+		} else trace("was not able to find path");
 
 		heroPath.graphics.endFill();
 	}
@@ -168,6 +168,7 @@ class Game {
 		maze.graphics.clear();
 		if ( heroPath != null ) heroPath.graphics.clear();
 		maze = null;
+		hero = null;
 
 		Main.inst.removeEventListener(KeyboardEvent.KEY_DOWN, keyDown);
 		Main.inst.removeEventListener(KeyboardEvent.KEY_UP, keyUp);

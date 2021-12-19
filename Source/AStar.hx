@@ -179,12 +179,11 @@ class AStar {
 		за стеной, пишем их потенциальное F, чтобы потом, когда закончатся клетки в opened, 
 		мы начали ломать стены, образующие самые выгодные срезы, таким образом, чтобы их разница
 		между f и potentialF была наивысшей, при этом перерасчитывая все клетки, даже те, что уже в closed,
-		с тем условием, чтобы g стоимость была выше в соседней клетке
+		с тем условием, если g стоимость была выше в соседней клетке
 
-		моё решение не работает: количество сломанных стен 
+		путь иногда находится криво и может не считать стены
 	**/
 	public function findPath() {
-		indexAllMap();
 
 		opened.push(start);
 		// "behindWalls.length > 0" чтобы сломать стены, даже если персонаж замурован в 1 клетке
@@ -219,23 +218,22 @@ class AStar {
 			opened.remove(cell);
 			closed.add(cell);
 
-			// если клетка null, то до выхода нельзя добраться, не сломав стену
+			// если здесь клетка null, то до выхода нельзя добраться, не сломав стену
 			while( (cell == null || cell.g >= energy)
 				&& behindWalls.length > 0
 			) {
 
 				var cellBehindWall = null;
-
 				// возвращает самую выгодную ячейку, в которую можно перейти, сломав стену
 				while(
 					behindWalls.length > 0
-					&& (
-						cellBehindWall == null
+					&& (cellBehindWall == null
 						|| cellBehindWall.g > energy
 					) ) {
 
 						for ( wall in behindWalls.copy() ) {
-							if ( wall.f < wall.potentialF && opened.length > 0 ) {
+							if ( (wall.f - wall.potentialF < 30 && wall.f != 0 && opened.length > 0)
+								|| wall.wallsDestroyed >= sledgehammerUses ) {
 								behindWalls.remove(wall);
 								continue;
 							}
@@ -243,12 +241,9 @@ class AStar {
 								cellBehindWall = wall;
 								continue;
 							}
-							if (
-								wall.f - wall.potentialF > 0
-								&& wall.potentialF < wall.f
-								&& wall.f - wall.potentialF > cellBehindWall.f - cellBehindWall.potentialF
-							)
+							if ( cellBehindWall.potentialF > wall.potentialF )
 								cellBehindWall = wall;
+							
 						}
 
 						if ( cellBehindWall != null && !ensureThereWillBeNoLoops(cellBehindWall, cellBehindWall.wallbreakingParent) ) {
@@ -259,17 +254,20 @@ class AStar {
 						if ( cellBehindWall != null && !behindWalls.remove(cellBehindWall) ) break;
 				}
 
+				
+
 				if ( cellBehindWall != null ) {
-					trace("breaking wall in cell " + cellBehindWall.x,
-						cellBehindWall.y, "from " + cellBehindWall.wallbreakingParent.x,
-						cellBehindWall.wallbreakingParent.y,
-						"with differ: ", cellBehindWall.f - cellBehindWall.potentialF);
 
 					opened.push(cell);
 					cell = cellBehindWall;
 					updateCell(cell, cell.wallbreakingParent);
 					cell.wallsDestroyed++;
 
+					var parent = cell.parent;
+					while( parent != null ) {
+						parent.wallsDestroyed = cell.wallsDestroyed;
+						parent = parent.parent;
+					}
 					break;
 				}
 			}
@@ -278,12 +276,14 @@ class AStar {
 				return displayPath();
 			}
 
+			if ( cell == null ) return null;
+
 			var adjCells = getAdjacentCells(cell);
 
 			for ( adjCell in adjCells ) {
 
 				// "cell.g < adjCell.g - 20" - чтобы снова проходить тот же путь, но уже через сломанную стену
-				if ( (!closed.has(adjCell) || cell.g < adjCell.g - 20)
+				if ( (!closed.has(adjCell) || cell.g < adjCell.g - 30)
 					&& ensureThereWillBeNoLoops(adjCell, cell) ) {
 
 					if ( !wallExistsBetweenCells(adjCell, cell) ) {
@@ -315,11 +315,5 @@ class AStar {
 		}
 
 		return null;
-	}
-
-	function indexAllMap() {
-		// opened.push(start);
-
-
 	}
 }
