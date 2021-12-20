@@ -1,3 +1,4 @@
+import js.lib.Set;
 import tools.IntPair;
 import openfl.text.TextField;
 import openfl.geom.ColorTransform;
@@ -169,21 +170,22 @@ class Maze extends Sprite {
 				if ( y > 0 ) secondCell = { x : x, y : y - 1 };
 			} else {
 				// right
-				if ( x > size - 1 ) secondCell = { x : x + 1, y : y };
+				if ( x < size - 1 ) secondCell = { x : x + 1, y : y };
 			}
 		}
 
 		if ( secondCell != null ) {
 			var wallRemoved = false;
 
-			for ( edge in edges ) {
-				var c1 = IntPair.unmapCell(edge.val1, size);
-				var c2 = IntPair.unmapCell(edge.val2, size);
-				if ( (x == c1.val1 && y == c1.val2 && secondCell.x == c2.val1 && secondCell.y == c2.val2)
-					|| (x == c2.val1 && y == c2.val2 && secondCell.x == c1.val1 && secondCell.y == c1.val2) ) {
-					edges.remove(edge);
-					wallRemoved = true;
-				}
+			var edge = IntPair.findWallBetweenTwoCells(
+				{ x : x, y : y },
+				{ x : secondCell.x, y : secondCell.y },
+				new Set(edges), size
+			);
+
+			if ( edge != null ) {
+				edges.remove(edge);
+				wallRemoved = true;
 			}
 
 			if ( !wallRemoved ) {
@@ -192,6 +194,41 @@ class Maze extends Sprite {
 
 			drawAll();
 		}
+	}
+
+	public function addRandomWalls( amount : Int ) {
+		var walls = [];
+		trace(amount);
+
+		var edgesSet = new Set(edges);
+		var coordinateOffset = [{ x : 1, y : 0 }, { x : 0, y : 1 }];
+
+		for ( y in 0...size - 2 ) {
+			for ( x in 0...size - 2 ) {
+				for ( offset in coordinateOffset ) {
+					if ( !IntPair.wallExistsBetweenCells(
+						{ x : x, y : y },
+						{ x : x + offset.x, y : y + offset.y },
+						edgesSet,
+						size) ) {
+						walls.push(
+							new IntPair(
+								IntPair.mapCell(x, y, size),
+								IntPair.mapCell(x + offset.x, y + offset.y, size))
+						);
+					}
+				}
+			}
+		}
+
+		for ( i in 0...amount - 1 ) {
+			var wall = walls[Std.random(walls.length - 1)];
+
+			edges.push(wall);
+			walls.remove(wall);
+		}
+
+		redrawWalls();
 	}
 
 	private function redrawWalls() {

@@ -66,7 +66,7 @@ import sys.FileSystem;
 
 		#else
 
-		data = '{"name":null,"assets":"aoy4:pathy17:assets%2Fmain.xmly4:sizei2343y4:typey4:TEXTy2:idR1y7:preloadtgoR0y20:assets%2Fdoomguy.pngR2i5625R3y5:IMAGER5R7R6tgh","rootPath":null,"version":2,"libraryArgs":[],"libraryType":null}';
+		data = '{"name":null,"assets":"aoy4:pathy17:assets%2Fmain.xmly4:sizei2500y4:typey4:TEXTy2:idR1y7:preloadtgoR0y20:assets%2Fdoomguy.pngR2i5625R3y5:IMAGER5R7R6tgh","rootPath":null,"version":2,"libraryArgs":[],"libraryType":null}';
 		manifest = AssetManifest.parse (data, rootPath);
 		library = AssetLibrary.fromManifest (manifest);
 		Assets.registerLibrary ("default", library);

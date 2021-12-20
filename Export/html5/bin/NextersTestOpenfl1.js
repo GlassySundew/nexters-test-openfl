@@ -58,15 +58,17 @@ var AStar = function(start,end,size,energy,sledgehammerUses,teleportCost,telepor
 	this.cells = _g;
 	this.start = this.cells[start.y][start.x];
 	this.end = this.cells[end.y][end.x];
+	var cell = this.start;
+	this.start.h = 10 * (Math.abs(cell.x - this.end.x) + Math.abs(cell.y - this.end.y)) | 0;
 };
 $hxClasses["AStar"] = AStar;
 AStar.__name__ = "AStar";
 AStar.prototype = {
-	opened: null
+	edges: null
+	,opened: null
 	,closed: null
 	,behindWalls: null
 	,cells: null
-	,edges: null
 	,start: null
 	,end: null
 	,size: null
@@ -91,29 +93,6 @@ AStar.prototype = {
 		}
 		return result;
 	}
-	,wallExistsBetweenCells: function(cell1,cell2,edges) {
-		if(edges == null) {
-			edges = this.edges;
-		}
-		var jsIterator = edges.values();
-		var _g_jsIterator = jsIterator;
-		var _g_lastStep = jsIterator.next();
-		while(!_g_lastStep.done) {
-			var v = _g_lastStep.value;
-			_g_lastStep = _g_jsIterator.next();
-			var edge = v;
-			var c = edge.val1;
-			var size = this.size;
-			var c1 = new tools_IntPair(c % size,Math.floor(c / size));
-			var c2 = edge.val2;
-			var size1 = this.size;
-			var c21 = new tools_IntPair(c2 % size1,Math.floor(c2 / size1));
-			if(c1.val1 == cell1.x && c1.val2 == cell1.y && c21.val1 == cell2.x && c21.val2 == cell2.y || c21.val1 == cell1.x && c21.val2 == cell1.y && c1.val1 == cell2.x && c1.val2 == cell2.y) {
-				return true;
-			}
-		}
-		return false;
-	}
 	,getHeuristic: function(cell) {
 		return 10 * (Math.abs(cell.x - this.end.x) + Math.abs(cell.y - this.end.y));
 	}
@@ -135,7 +114,6 @@ AStar.prototype = {
 			resultPath.push(cell);
 		}
 		resultPath.push(this.start);
-		haxe_Log.trace(this.end.wallsDestroyed,{ fileName : "Source/AStar.hx", lineNumber : 136, className : "AStar", methodName : "displayPath"});
 		return resultPath;
 	}
 	,ensureThereWillBeNoLoops: function(adjCell,cell) {
@@ -150,12 +128,12 @@ AStar.prototype = {
 	}
 	,heapify: function(array,size,rootIndex) {
 		var lowest = rootIndex;
-		var leftChild = (rootIndex >> 1) - 1;
-		var rightChild = (rootIndex >> 1) - 2;
-		if(leftChild > -1 && array[leftChild].f < array[lowest].f) {
+		var leftChild = rootIndex * 2 + 1;
+		var rightChild = rootIndex * 2 + 2;
+		if(leftChild < size && array[leftChild].f < array[lowest].f) {
 			lowest = leftChild;
 		}
-		if(rightChild > -1 && array[rightChild].f < array[lowest].f) {
+		if(rightChild < size && array[rightChild].f < array[lowest].f) {
 			lowest = rightChild;
 		}
 		if(lowest != rootIndex) {
@@ -169,33 +147,28 @@ AStar.prototype = {
 		this.opened.push(this.start);
 		while(this.opened.length > 0 || this.behindWalls.length > 0) {
 			var cell = null;
-			var _g = 0;
-			var _g1 = this.opened;
-			while(_g < _g1.length) {
-				var openedCell = _g1[_g];
-				++_g;
-				if(cell == null) {
-					cell = openedCell;
-					continue;
-				}
-				if(cell.f > openedCell.f) {
-					cell = openedCell;
-				}
+			var size = this.opened.length >> 1;
+			var start = 0;
+			while(start < size) {
+				this.heapify(this.opened,size,start);
+				++start;
 			}
-			if(cell == this.end) {
+			var cell1 = this.opened[0];
+			HxOverrides.remove(this.opened,cell1);
+			if(cell1 == this.end && (this.behindWalls.length == 0 || this.end.wallsDestroyed == 0) || this.end.g == this.start.h) {
 				return this.displayPath();
 			}
-			HxOverrides.remove(this.opened,cell);
-			this.closed.add(cell);
-			while((cell == null || cell.g >= this.energy) && this.behindWalls.length > 0) {
+			HxOverrides.remove(this.opened,cell1);
+			this.closed.add(cell1);
+			while((cell1 == null || cell1.g >= this.energy) && this.behindWalls.length > 0) {
 				var cellBehindWall = null;
 				while(this.behindWalls.length > 0 && (cellBehindWall == null || cellBehindWall.g > this.energy)) {
-					var _g2 = 0;
-					var _g3 = this.behindWalls.slice();
-					while(_g2 < _g3.length) {
-						var wall = _g3[_g2];
-						++_g2;
-						if(wall.wallsDestroyed >= this.sledgehammerUses - 1) {
+					var _g = 0;
+					var _g1 = this.behindWalls.slice();
+					while(_g < _g1.length) {
+						var wall = _g1[_g];
+						++_g;
+						if(wall.f - wall.potentialF < 10 && wall.f != 0 && this.opened.length > 0 || wall.wallsDestroyed > this.sledgehammerUses || wall.wallbreakingParent.wallsDestroyed > this.sledgehammerUses - 1) {
 							HxOverrides.remove(this.behindWalls,wall);
 							continue;
 						}
@@ -215,49 +188,49 @@ AStar.prototype = {
 						break;
 					}
 				}
-				if(cellBehindWall != null) {
-					this.opened.push(cell);
-					cell = cellBehindWall;
-					this.updateCell(cell,cell.wallbreakingParent);
-					cell.wallsDestroyed++;
-					var parent = cell.parent;
+				if(cellBehindWall != null && cellBehindWall.wallsDestroyed <= this.sledgehammerUses) {
+					this.opened.push(cell1);
+					cell1 = cellBehindWall;
+					this.updateCell(cell1,cell1.wallbreakingParent);
+					cell1.wallsDestroyed++;
+					var parent = cell1.parent;
 					while(parent != null) {
-						parent.wallsDestroyed = cell.wallsDestroyed;
+						parent.wallsDestroyed = cell1.wallsDestroyed;
 						parent = parent.parent;
 					}
 					break;
 				}
 			}
-			if(cell == this.end) {
+			if(cell1 == this.end && this.behindWalls.length == 0 || this.end.g == this.start.h) {
 				return this.displayPath();
 			}
-			if(cell == null) {
+			if(cell1 == null) {
 				return null;
 			}
-			var adjCells = this.getAdjacentCells(cell);
-			var _g4 = 0;
-			while(_g4 < adjCells.length) {
-				var adjCell = adjCells[_g4];
-				++_g4;
-				if((!this.closed.has(adjCell) || cell.g < adjCell.g - 10) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
-					if(!this.wallExistsBetweenCells(adjCell,cell)) {
+			var adjCells = this.getAdjacentCells(cell1);
+			var _g2 = 0;
+			while(_g2 < adjCells.length) {
+				var adjCell = adjCells[_g2];
+				++_g2;
+				if((!this.closed.has(adjCell) || cell1.g < adjCell.g - 10) && this.ensureThereWillBeNoLoops(adjCell,cell1)) {
+					if(tools_IntPair.findWallBetweenTwoCells({ x : adjCell.x, y : adjCell.y},{ x : cell1.x, y : cell1.y},this.edges,this.size) == null) {
 						if(this.opened.indexOf(adjCell) == -1) {
 							this.opened.push(adjCell);
 						}
-						this.updateCell(adjCell,cell);
-					} else if(cell.g < this.energy && cell.wallsDestroyed < this.sledgehammerUses - 1) {
-						var potentialF = (10 * (Math.abs(adjCell.x - this.end.x) + Math.abs(adjCell.y - this.end.y)) | 0) + cell.g + 10;
+						this.updateCell(adjCell,cell1);
+					} else if(cell1.g < this.energy && cell1.wallsDestroyed < this.sledgehammerUses) {
+						var potentialF = (10 * (Math.abs(adjCell.x - this.end.x) + Math.abs(adjCell.y - this.end.y)) | 0) + cell1.g + 10;
 						if(adjCell.potentialF == 0 || adjCell.potentialF > potentialF) {
 							adjCell.potentialF = potentialF;
-							adjCell.wallbreakingParent = cell;
-							adjCell.wallsDestroyed = cell.wallsDestroyed;
+							adjCell.wallbreakingParent = cell1;
+							adjCell.wallsDestroyed = cell1.wallsDestroyed;
 							this.behindWalls.push(adjCell);
 						}
 					}
 				}
 			}
 		}
-		return null;
+		return this.displayPath();
 	}
 	,__class__: AStar
 };
@@ -4047,6 +4020,7 @@ var ControlStatus = $hxEnums["ControlStatus"] = { __ename__:"ControlStatus",__co
 };
 ControlStatus.__constructs__ = [ControlStatus.Pathfinder,ControlStatus.HeroTransfer,ControlStatus.WallEdit];
 var Game = function(stat,parent) {
+	var _gthis = this;
 	Game.set_inst(this);
 	this.parentRoot = parent;
 	this.stat = stat;
@@ -4072,10 +4046,13 @@ var Game = function(stat,parent) {
 	Main.inst.uiManager.mazeClearButton.set_onClick(($_=Game.get_inst(),$bind($_,$_.clearMap)));
 	Main.inst.uiManager.addEnergyButton.set_onClick(function(e) {
 		var fh = Game.get_inst().hero;
-		fh.set_energy(fh.energy + Std.parseInt(Main.inst.uiManager.addRandomWallsTextField.get_text()));
+		fh.set_energy(fh.energy + Std.parseInt(Main.inst.uiManager.addEnergyTextField.get_text()));
 	});
 	Main.inst.uiManager.refresherButton.set_onClick(($_=Main.inst,$bind($_,$_.newGame)));
 	Main.inst.uiManager.endTurnButton.set_onClick(($_=Game.get_inst(),$bind($_,$_.endTurn)));
+	Main.inst.uiManager.addRandomWallsButton.set_onClick(function(e) {
+		_gthis.maze.addRandomWalls(Std.parseInt(Main.inst.uiManager.randomWallsConfig.get_text()));
+	});
 };
 $hxClasses["Game"] = Game;
 Game.__name__ = "Game";
@@ -4140,7 +4117,7 @@ Game.prototype = {
 					continue;
 				}
 				--availableEnergy;
-				if(astar7.wallExistsBetweenCells(cell,path[i + 1])) {
+				if(tools_IntPair.findWallBetweenTwoCells({ x : cell.x, y : cell.y},{ x : path[i + 1].x, y : path[i + 1].y},astar7.edges,this.stat.mazeSize) != null) {
 					this.drawCross((cell.x + Math.abs((path[i + 1].y - cell.y) / 2) + Math.max(path[i + 1].x - cell.x,0)) * this.maze.cellSize,(cell.y + Math.abs((path[i + 1].x - cell.x) / 2) + Math.max(path[i + 1].y - cell.y,0)) * this.maze.cellSize,this.heroPath.get_graphics());
 				}
 				if(availableEnergy < 0) {
@@ -4154,7 +4131,7 @@ Game.prototype = {
 			this.hero.pathCache = path;
 			this.maze.displayTooltip((path[path.length - 1].x + 2) * this.maze.cellSize,path[path.length - 1].y * this.maze.cellSize,"cost: " + (path.length - 1));
 		} else {
-			haxe_Log.trace("was not able to find path",{ fileName : "Source/Game.hx", lineNumber : 144, className : "Game", methodName : "getPathPreviewFromHero"});
+			haxe_Log.trace("was not able to find path",{ fileName : "Source/Game.hx", lineNumber : 153, className : "Game", methodName : "getPathPreviewFromHero"});
 		}
 		this.heroPath.get_graphics().endFill();
 	}
@@ -8578,8 +8555,9 @@ var _$Main_UiManager = function() {
 	c14.set_percentWidth(100);
 	c13.addComponent(c14);
 	var c15 = new haxe_ui_components_TextField();
-	c15.set_id("addRandomWallsTextField");
+	c15.set_id("addEnergyTextField");
 	c15.set_text("40");
+	c15.set_restrictChars("0-9");
 	c15.set_horizontalAlign("right");
 	c13.addComponent(c15);
 	var c16 = new haxe_ui_components_Button();
@@ -8588,7 +8566,9 @@ var _$Main_UiManager = function() {
 	c16.set_verticalAlign("center");
 	c13.addComponent(c16);
 	var c17 = new haxe_ui_components_TextField();
+	c17.set_id("randomWallsConfig");
 	c17.set_text("100");
+	c17.set_restrictChars("0-9");
 	c13.addComponent(c17);
 	c1.addComponent(c13);
 	var c18 = new haxe_ui_components_Label();
@@ -8606,7 +8586,8 @@ var _$Main_UiManager = function() {
 	var c21 = new haxe_ui_components_TextField();
 	c21.set_id("mConfig");
 	c21.set_percentWidth(100.);
-	c21.set_value(40);
+	c21.set_text("40");
+	c21.set_restrictChars("0-9");
 	c21.set_horizontalAlign("right");
 	c19.addComponent(c21);
 	var c22 = new haxe_ui_components_Label();
@@ -8617,6 +8598,7 @@ var _$Main_UiManager = function() {
 	var c23 = new haxe_ui_components_TextField();
 	c23.set_id("eConfig");
 	c23.set_text("30");
+	c23.set_restrictChars("0-9");
 	c23.set_horizontalAlign("right");
 	c19.addComponent(c23);
 	var c24 = new haxe_ui_components_Label();
@@ -8627,6 +8609,7 @@ var _$Main_UiManager = function() {
 	var c25 = new haxe_ui_components_TextField();
 	c25.set_id("wConfig");
 	c25.set_text("5");
+	c25.set_restrictChars("0-9");
 	c25.set_horizontalAlign("right");
 	c19.addComponent(c25);
 	var c26 = new haxe_ui_components_Label();
@@ -8637,6 +8620,7 @@ var _$Main_UiManager = function() {
 	var c27 = new haxe_ui_components_TextField();
 	c27.set_id("rConfig");
 	c27.set_text("10");
+	c27.set_restrictChars("0-9");
 	c27.set_horizontalAlign("right");
 	c19.addComponent(c27);
 	var c28 = new haxe_ui_components_Label();
@@ -8647,6 +8631,7 @@ var _$Main_UiManager = function() {
 	var c29 = new haxe_ui_components_TextField();
 	c29.set_id("tConfig");
 	c29.set_text("10");
+	c29.set_restrictChars("0-9");
 	c29.set_horizontalAlign("right");
 	c19.addComponent(c29);
 	c1.addComponent(c19);
@@ -8671,6 +8656,7 @@ var _$Main_UiManager = function() {
 	this.tConfig = c29;
 	this.sledgehammerDisplayLabel = c8;
 	this.refresherButton = c31;
+	this.randomWallsConfig = c17;
 	this.rConfig = c27;
 	this.portalsDisplayLabel = c10;
 	this.mazeClearButton = c12;
@@ -8679,8 +8665,8 @@ var _$Main_UiManager = function() {
 	this.energyDisplayLabel = c6;
 	this.endTurnButton = c11;
 	this.eConfig = c23;
-	this.addRandomWallsTextField = c15;
 	this.addRandomWallsButton = c16;
+	this.addEnergyTextField = c15;
 	this.addEnergyButton = c14;
 };
 $hxClasses["_Main.UiManager"] = _$Main_UiManager;
@@ -8730,6 +8716,7 @@ _$Main_UiManager.prototype = $extend(haxe_ui_containers_VBox.prototype,{
 	,tConfig: null
 	,sledgehammerDisplayLabel: null
 	,refresherButton: null
+	,randomWallsConfig: null
 	,rConfig: null
 	,portalsDisplayLabel: null
 	,mazeClearButton: null
@@ -8738,8 +8725,8 @@ _$Main_UiManager.prototype = $extend(haxe_ui_containers_VBox.prototype,{
 	,energyDisplayLabel: null
 	,endTurnButton: null
 	,eConfig: null
-	,addRandomWallsTextField: null
 	,addRandomWallsButton: null
+	,addEnergyTextField: null
 	,addEnergyButton: null
 	,__class__: _$Main_UiManager
 });
@@ -8757,7 +8744,7 @@ ManifestResources.init = function(config) {
 		ManifestResources.rootPath = "./";
 	}
 	var bundle;
-	var data = "{\"name\":null,\"assets\":\"aoy4:pathy17:assets%2Fmain.xmly4:sizei2343y4:typey4:TEXTy2:idR1y7:preloadtgoR0y20:assets%2Fdoomguy.pngR2i5625R3y5:IMAGER5R7R6tgh\",\"rootPath\":null,\"version\":2,\"libraryArgs\":[],\"libraryType\":null}";
+	var data = "{\"name\":null,\"assets\":\"aoy4:pathy17:assets%2Fmain.xmly4:sizei2500y4:typey4:TEXTy2:idR1y7:preloadtgoR0y20:assets%2Fdoomguy.pngR2i5625R3y5:IMAGER5R7R6tgh\",\"rootPath\":null,\"version\":2,\"libraryArgs\":[],\"libraryType\":null}";
 	var manifest = lime_utils_AssetManifest.parse(data,ManifestResources.rootPath);
 	var library = lime_utils_AssetLibrary.fromManifest(manifest);
 	lime_utils_Assets.registerLibrary("default",library);
@@ -8913,32 +8900,56 @@ Maze.prototype = $extend(openfl_display_Sprite.prototype,{
 			if(y > 0) {
 				secondCell = { x : x, y : y - 1};
 			}
-		} else if(x > this.size - 1) {
+		} else if(x < this.size - 1) {
 			secondCell = { x : x + 1, y : y};
 		}
 		if(secondCell != null) {
 			var wallRemoved = false;
-			var _g = 0;
-			var _g1 = this.get_edges();
-			while(_g < _g1.length) {
-				var edge = _g1[_g];
-				++_g;
-				var c = edge.val1;
-				var size = this.size;
-				var c1 = new tools_IntPair(c % size,Math.floor(c / size));
-				var c2 = edge.val2;
-				var size1 = this.size;
-				var c21 = new tools_IntPair(c2 % size1,Math.floor(c2 / size1));
-				if(x == c1.val1 && y == c1.val2 && secondCell.x == c21.val1 && secondCell.y == c21.val2 || x == c21.val1 && y == c21.val2 && secondCell.x == c1.val1 && secondCell.y == c1.val2) {
-					HxOverrides.remove(this.get_edges(),edge);
-					wallRemoved = true;
-				}
+			var edge = { x : secondCell.x, y : secondCell.y};
+			var edge1 = this.get_edges();
+			var edge2 = tools_IntPair.findWallBetweenTwoCells({ x : x, y : y},edge,new Set(edge1),this.size);
+			if(edge2 != null) {
+				HxOverrides.remove(this.get_edges(),edge2);
+				wallRemoved = true;
 			}
 			if(!wallRemoved) {
 				this.get_edges().push(new tools_IntPair(x + y * this.size,secondCell.x + secondCell.y * this.size));
 			}
 			this.drawAll();
 		}
+	}
+	,addRandomWalls: function(amount) {
+		var walls = [];
+		haxe_Log.trace(amount,{ fileName : "Source/Maze.hx", lineNumber : 201, className : "Maze", methodName : "addRandomWalls"});
+		var edgesSet = new Set(this.get_edges());
+		var coordinateOffset = [{ x : 1, y : 0},{ x : 0, y : 1}];
+		var _g = 0;
+		var _g1 = this.size - 2;
+		while(_g < _g1) {
+			var y = _g++;
+			var _g2 = 0;
+			var _g3 = this.size - 2;
+			while(_g2 < _g3) {
+				var x = _g2++;
+				var _g4 = 0;
+				while(_g4 < coordinateOffset.length) {
+					var offset = coordinateOffset[_g4];
+					++_g4;
+					if(tools_IntPair.findWallBetweenTwoCells({ x : x, y : y},{ x : x + offset.x, y : y + offset.y},edgesSet,this.size) == null) {
+						walls.push(new tools_IntPair(x + y * this.size,x + offset.x + (y + offset.y) * this.size));
+					}
+				}
+			}
+		}
+		var _g = 0;
+		var _g1 = amount - 1;
+		while(_g < _g1) {
+			var i = _g++;
+			var wall = walls[Std.random(walls.length - 1)];
+			this.get_edges().push(wall);
+			HxOverrides.remove(walls,wall);
+		}
+		this.redrawWalls();
 	}
 	,redrawWalls: function() {
 		this.kruskal.drawWalls(this.wallColor);
@@ -44490,7 +44501,7 @@ var lime_utils_AssetCache = function() {
 	this.audio = new haxe_ds_StringMap();
 	this.font = new haxe_ds_StringMap();
 	this.image = new haxe_ds_StringMap();
-	this.version = 566643;
+	this.version = 558123;
 };
 $hxClasses["lime.utils.AssetCache"] = lime_utils_AssetCache;
 lime_utils_AssetCache.__name__ = "lime.utils.AssetCache";
@@ -95732,6 +95743,27 @@ tools_IntPair.mapCell = function(cx,cy,size) {
 };
 tools_IntPair.unmapCell = function(c,size) {
 	return new tools_IntPair(c % size,Math.floor(c / size));
+};
+tools_IntPair.findWallBetweenTwoCells = function(cell1,cell2,edges,size) {
+	var jsIterator = edges.values();
+	var _g_jsIterator = jsIterator;
+	var _g_lastStep = jsIterator.next();
+	while(!_g_lastStep.done) {
+		var v = _g_lastStep.value;
+		_g_lastStep = _g_jsIterator.next();
+		var edge = v;
+		var c = edge.val1;
+		var c1 = new tools_IntPair(c % size,Math.floor(c / size));
+		var c2 = edge.val2;
+		var c21 = new tools_IntPair(c2 % size,Math.floor(c2 / size));
+		if(c1.val1 == cell1.x && c1.val2 == cell1.y && c21.val1 == cell2.x && c21.val2 == cell2.y || c21.val1 == cell1.x && c21.val2 == cell1.y && c1.val1 == cell2.x && c1.val2 == cell2.y) {
+			return edge;
+		}
+	}
+	return null;
+};
+tools_IntPair.wallExistsBetweenCells = function(cell1,cell2,edges,size) {
+	return tools_IntPair.findWallBetweenTwoCells(cell1,cell2,edges,size) != null;
 };
 tools_IntPair.prototype = {
 	val1: null

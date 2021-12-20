@@ -33,13 +33,13 @@ class Cell {
 
 class AStar {
 	/**list of available cells to enter**/
+	public var edges : Set<tools.IntPair>;
 	private var opened : Array<Cell>;
 	/**set of cells that can no longer be entered**/
 	private var closed : Set<Cell>;
 	/** mark all cells that are cut off with walls from the one we are in **/
 	private var behindWalls : Array<Cell>;
 	private var cells : Array<Array<Cell>>;
-	private var edges : Set<tools.IntPair>;
 	private var start : Cell;
 	private var end : Cell;
 	private var size : Int;
@@ -81,6 +81,8 @@ class AStar {
 
 		this.start = cells[start.y][start.x];
 		this.end = cells[end.y][end.x];
+
+		this.start.h = Std.int(getHeuristic(this.start));
 	}
 
 	private function getAdjacentCells( cell : Cell ) {
@@ -94,20 +96,6 @@ class AStar {
 		if ( cell.x > 0 )
 			result.push(cells[cell.y][cell.x - 1]);
 		return result;
-	}
-	/** 
-		клетки должны быть смежными
-	**/
-	public function wallExistsBetweenCells( cell1 : Cell, cell2 : Cell, ?edges : Set<IntPair> ) : Bool {
-		edges = edges == null ? this.edges : edges;
-		for ( edge in edges ) {
-			var c1 = IntPair.unmapCell(edge.val1, size); // cell 1
-			var c2 = IntPair.unmapCell(edge.val2, size); // cell 2
-			if ( (c1.val1 == cell1.x && c1.val2 == cell1.y && c2.val1 == cell2.x && c2.val2 == cell2.y)
-				|| (c2.val1 == cell1.x && c2.val2 == cell1.y && c1.val1 == cell2.x && c1.val2 == cell2.y)
-			) return true;
-		}
-		return false;
 	}
 
 	private inline function getHeuristic( cell : Point )
@@ -133,7 +121,6 @@ class AStar {
 			resultPath.push(cell);
 		}
 		resultPath.push(start);
-		trace(end.wallsDestroyed);
 
 		return resultPath;
 	}
@@ -152,17 +139,19 @@ class AStar {
 		return true;
 	}
 	/**
+		heapPush и getMin напишу завтра
+
 		heapify opened array by f param from bottom to top for faster performance with opened.pop()
 	**/
 	private function heapify( array : Array<Cell>, size : Int, rootIndex : Int ) {
 		var lowest = rootIndex;
-		var leftChild = (rootIndex >> 1) - 1;
-		var rightChild = (rootIndex >> 1) - 2;
+		var leftChild = (rootIndex * 2) + 1;
+		var rightChild = (rootIndex * 2) + 2;
 
-		if ( leftChild > -1 && array[leftChild].f < array[lowest].f )
+		if ( leftChild < size && array[leftChild].f < array[lowest].f )
 			lowest = leftChild;
 
-		if ( rightChild > -1 && array[rightChild].f < array[lowest].f )
+		if ( rightChild < size && array[rightChild].f < array[lowest].f )
 			lowest = rightChild;
 
 		if ( lowest != rootIndex ) {
@@ -177,11 +166,11 @@ class AStar {
 
 		Моё решение: мы обходим граф лабиринта по A*, и во все клетки, находящиеся
 		за стеной, пишем их потенциальное F, чтобы потом, когда закончатся клетки в opened, 
-		мы начали ломать стены с наименьшим potencialF, 
+		мы начали ломать стены с наименьшим potentialF, 
 		при этом перерасчитывая все клетки, даже те, что уже в closed,
 		с тем условием, если g стоимость выше в соседней клетке
 
-		путь иногда находится криво и может не считать стены, 
+		путь иногда находится криво и может не считать стены
 	**/
 	public function findPath() {
 
@@ -192,26 +181,19 @@ class AStar {
 			var cell = null;
 			// heapify opened array
 			{
-				// var size = opened.length;
-				// var start = 0;
-				// while( start < size ) {
-				// 	heapify(opened, size, start);
-				// 	start++;
-				// }
-
-				for ( openedCell in opened ) {
-					if ( cell == null ) {
-						cell = openedCell;
-						continue;
-					}
-					if ( cell.f > openedCell.f )
-						cell = openedCell;
+				var size = opened.length >> 1;
+				var start = 0;
+				while( start < size ) {
+					heapify(opened, size, start);
+					start++;
 				}
+
 			}
 
-			// var cell = opened.pop();
+			var cell = opened[0];
+			opened.remove(cell);
 
-			if ( cell == end ) {
+			if ( (cell == end && (behindWalls.length == 0 || end.wallsDestroyed == 0)) || (end.g == start.h) ) {
 				return displayPath();
 			}
 
@@ -232,13 +214,14 @@ class AStar {
 					) ) {
 
 						for ( wall in behindWalls.copy() ) {
-							if ( 
-								// (
-								// wall.f - wall.potentialF < 20 
-								// &&
-								//  wall.f != 0 && opened.length > 0)
-								// || 
-								wall.wallsDestroyed >= sledgehammerUses - 1 ) {
+							if ( (
+								wall.f - wall.potentialF < 10
+								&&
+								wall.f != 0 && opened.length > 0
+							)
+								|| wall.wallsDestroyed > sledgehammerUses
+								|| wall.wallbreakingParent.wallsDestroyed > sledgehammerUses - 1
+							) {
 								behindWalls.remove(wall);
 								continue;
 							}
@@ -258,7 +241,7 @@ class AStar {
 						if ( cellBehindWall != null && !behindWalls.remove(cellBehindWall) ) break;
 				}
 
-				if ( cellBehindWall != null ) {
+				if ( cellBehindWall != null && cellBehindWall.wallsDestroyed <= sledgehammerUses ) {
 
 					opened.push(cell);
 					cell = cellBehindWall;
@@ -274,7 +257,7 @@ class AStar {
 				}
 			}
 
-			if ( cell == end ) {
+			if ( (cell == end && behindWalls.length == 0) || (end.g == start.h) ) {
 				return displayPath();
 			}
 
@@ -288,7 +271,12 @@ class AStar {
 				if ( (!closed.has(adjCell) || cell.g < adjCell.g - 10)
 					&& ensureThereWillBeNoLoops(adjCell, cell) ) {
 
-					if ( !wallExistsBetweenCells(adjCell, cell) ) {
+					if ( !IntPair.wallExistsBetweenCells(
+						{ x : adjCell.x, y : adjCell.y },
+						{ x : cell.x, y : cell.y },
+						edges,
+						size) ) {
+
 						if ( !opened.contains(adjCell) )
 							opened.push(adjCell);
 						updateCell(adjCell, cell);
@@ -296,7 +284,7 @@ class AStar {
 						// the adjCell is located over the wall
 						// we wont break walls after our energy runs out
 
-						if ( cell.g < energy && cell.wallsDestroyed < sledgehammerUses - 1 ) {
+						if ( cell.g < energy && cell.wallsDestroyed < sledgehammerUses ) {
 							// we mark cells that are behind walls to crush them later if needed
 							var potentialF = Std.int(getHeuristic(adjCell)) + cell.g + 10;
 							if ( adjCell.potentialF == 0 || adjCell.potentialF > potentialF ) {
@@ -311,6 +299,6 @@ class AStar {
 			}
 		}
 
-		return null;
+		return displayPath();
 	}
 }

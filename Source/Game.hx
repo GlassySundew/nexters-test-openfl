@@ -1,3 +1,4 @@
+import tools.IntPair;
 import openfl.ui.Keyboard;
 import openfl.events.KeyboardEvent;
 import openfl.display.Graphics;
@@ -71,10 +72,13 @@ class Game {
 		Main.inst.uiManager.endTurnButton.onClick = Game.inst.endTurn;
 		Main.inst.uiManager.mazeClearButton.onClick = Game.inst.clearMap;
 		Main.inst.uiManager.addEnergyButton.onClick = ( e ) -> {
-			Game.inst.hero.energy += Std.parseInt(Main.inst.uiManager.addRandomWallsTextField.text);
+			Game.inst.hero.energy += Std.parseInt(Main.inst.uiManager.addEnergyTextField.text);
 		};
 		Main.inst.uiManager.refresherButton.onClick = Main.inst.newGame;
 		Main.inst.uiManager.endTurnButton.onClick = Game.inst.endTurn;
+		Main.inst.uiManager.addRandomWallsButton.onClick = ( e ) -> {
+			maze.addRandomWalls(Std.parseInt(Main.inst.uiManager.randomWallsConfig.text));
+		};
 	}
 
 	private function keyDown( e : KeyboardEvent ) {
@@ -120,7 +124,12 @@ class Game {
 					continue;
 				availableEnergy--;
 
-				if ( astar.wallExistsBetweenCells(cell, path[i + 1]) ) {
+				if ( IntPair.wallExistsBetweenCells(
+					{ x : cell.x, y : cell.y },
+					{ x : path[i + 1].x, y : path[i + 1].y },
+					astar.edges,
+					stat.mazeSize) ) {
+
 					drawCross(
 						(cell.x + Math.abs((path[i + 1].y - cell.y) / 2) + Math.max((path[i + 1].x - cell.x), 0)) * maze.cellSize,
 						(cell.y + Math.abs((path[i + 1].x - cell.x) / 2) + Math.max((path[i + 1].y - cell.y), 0)) * maze.cellSize,
