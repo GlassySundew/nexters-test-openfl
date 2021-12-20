@@ -3,6 +3,7 @@
 
 	<meta title="NextersTestOpenfl1" package="com.sample.nexterstestopenfl1" version="1.0.0" company="Company Name" />
 	<app main="Main" path="Export" file="NextersTestOpenfl1" />
+	<window width="0" height="0" if="html5" />
 
 	<source path="Source" />
 

@@ -1,19 +1,12 @@
 package;
 
-import openfl.events.KeyboardEvent;
-import openfl.ui.Keyboard;
+import haxe.ui.events.MouseEvent;
+import openfl.Lib;
 import haxe.ui.HaxeUIApp;
 import haxe.ui.Toolkit;
-import haxe.ui.components.Button;
-import haxe.ui.components.Label;
-import haxe.ui.components.TextArea;
 import haxe.ui.containers.VBox;
-import haxe.ui.core.Component;
-import haxe.ui.core.ItemRenderer;
-import haxe.ui.events.MouseEvent;
-import haxe.ui.macros.ComponentMacros;
-import openfl.Lib;
 import openfl.display.Sprite;
+import openfl.text.TextField;
 
 class Main extends Sprite {
 	public static var inst : Main;
@@ -26,100 +19,52 @@ class Main extends Sprite {
 
 		Lib.current.stage.color = 0x25292e;
 
-		Toolkit.init();
 		Toolkit.theme = "dark";
 
 		var app = new HaxeUIApp();
 		app.ready(function () {
-			var uiRoot = ComponentMacros.buildComponent("Assets/main.xml");
+			uiManager = new UiManager();
 
-			uiManager = new UiManager(uiRoot);
+			app.addComponent(uiManager);
 			uiManager.initConfig();
-
-			function newGame( e : MouseEvent ) {
-				new Game(
-					uiManager.getGameConfig(),
-					uiManager.mazeSpriteContainer
-				);
-			}
-
 			newGame(null);
-
-			uiManager.endTurnButton.onClick = Game.inst.endTurn;
-			uiManager.mazeClearButton.onClick = Game.inst.clearMap;
-			uiManager.addEnergyButton.onClick = ( e ) -> {
-				Game.inst.hero.energy += Std.parseInt(uiManager.addRandomWallsTextField.text);
-			};
-			uiManager.refresherButton.onClick = newGame;
-			uiManager.endTurnButton.onClick = Game.inst.endTurn;
-
-			app.addComponent(uiRoot);
 			app.start();
 		});
 	}
+
+	@:allow(Game)
+	private function newGame( e : MouseEvent ) {
+		new Game(
+			uiManager.getGameConfig(),
+			uiManager.mazeSpriteContainer
+		);
+	}
 }
 
-private class UiManager {
+@:build(haxe.ui.ComponentBuilder.build("Assets/main.xml"))
+private class UiManager extends VBox {
 	@:allow(Main)
 	private var mazeSpriteContainer : SpriteContainer;
-	@:allow(Main)
-	private var endTurnButton : Button;
-	@:allow(Main)
-	private var mazeClearButton : Button;
-	@:allow(Main)
-	private var addEnergyButton : Button;
-	@:allow(Main)
-	private var addRandomWallsButton : Button;
-	@:allow(Main)
-	private var refresherButton : Button;
 
-	private var uiRoot : Component;
-	private var energyDisplayLabel : Label;
-	private var sledgehammerDisplayLabel : Label;
-	private var portalsDisplayLabel : Label;
-	@:allow(Main)
-	private var addRandomWallsTextField : Label;
-	private var mConfig : TextArea;
-	private var eConfig : TextArea;
-	private var wConfig : TextArea;
-	private var rConfig : TextArea;
-	private var tConfig : TextArea;
-
-	public function new( uiRoot : Component ) {
-		this.uiRoot = uiRoot;
+	public function new() {
+		super();
 	}
 
 	public function initConfig() {
 		mazeSpriteContainer = new SpriteContainer();
-		var mazeBoxContainer : ItemRenderer = uiRoot.findComponent("mazeBoxContainer");
 		mazeBoxContainer.addChild(mazeSpriteContainer);
-
-		endTurnButton = uiRoot.findComponent("endTurnButton");
-		mazeClearButton = uiRoot.findComponent("mazeClearButton");
-		addEnergyButton = uiRoot.findComponent("addEnergyButton");
-		addRandomWallsButton = uiRoot.findComponent("addRandomWallsButton");
-		refresherButton = uiRoot.findComponent("refresher");
-
-		addRandomWallsTextField = uiRoot.findComponent("addRandomWallsTextField");
-
-		mConfig = uiRoot.findComponent("mConfig");
-		eConfig = uiRoot.findComponent("eConfig");
-		wConfig = uiRoot.findComponent("wConfig");
-		rConfig = uiRoot.findComponent("rConfig");
-		tConfig = uiRoot.findComponent("tConfig");
-
-		energyDisplayLabel = uiRoot.findComponent("energyDisplayLabel");
-		sledgehammerDisplayLabel = uiRoot.findComponent("sledgehammerDisplayLabel");
-		portalsDisplayLabel = uiRoot.findComponent("portalsDisplayLabel");
 	}
 
 	public function getGameConfig() : GameState {
+		function maxWith0( text : String )
+			return Std.int(Math.max(Std.parseInt(text), 0));
+
 		return {
-			mazeSize : Std.parseInt(mConfig.text),
-			maxEnergy : Std.parseInt(eConfig.text),
-			maxSledgehammerUses : Std.parseInt(wConfig.text),
-			teleportCost : Std.parseInt(tConfig.text),
-			teleportRadius : Std.parseInt(rConfig.text),
+			mazeSize : maxWith0(mConfig.text),
+			maxEnergy : maxWith0(eConfig.text),
+			maxSledgehammerUses : maxWith0(wConfig.text),
+			teleportCost : maxWith0(tConfig.text),
+			teleportRadius : maxWith0(rConfig.text),
 		}
 	}
 

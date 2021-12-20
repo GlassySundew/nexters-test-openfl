@@ -42,13 +42,13 @@ private class InteractiveCell extends Sprite {
 		Game.inst.removeHeroPath();
 	}
 
-	private function cellOnClick( _ ) {
+	private function cellOnClick( e ) {
 
 		switch Game.inst.controlStatus {
 			case HeroTransfer:
 				Game.inst.hero.setCellPosition(cellX, cellY);
 			case WallEdit:
-				Game.inst.maze.toggleWallsInCell(cellX, cellY);
+				Game.inst.maze.toggleWallsInCell(cellX, cellY, e);
 			case Pathfinder:
 				Game.inst.hero.moveByPath();
 			default:
@@ -150,29 +150,48 @@ class Maze extends Sprite {
 	/** 
 		if any cell present, will remove everything, if no cells present, will place 4 walls around
 	**/
-	public function toggleWallsInCell( x : Int, y : Int ) {
-		var walls = [];
+	public function toggleWallsInCell( x : Int, y : Int, e : MouseEvent ) {
 
-		for ( edge in edges ) {
-			var c1 = IntPair.unmapCell(edge.val1, size);
-			var c2 = IntPair.unmapCell(edge.val2, size);
-			if ( (x == c1.val1 && y == c1.val2) || (x == c2.val1 && y == c2.val2) ) {
-				walls.push(edge);
+		var secondCell : { x : Int, y : Int } = null;
+
+		if ( e.localX < e.localY ) {
+			if ( e.localY < -e.localX + cellSize ) {
+				// left
+				if ( x > 0 ) secondCell = { x : x - 1, y : y };
+			} else {
+				// bottom
+				if ( y < size - 1 ) secondCell = { x : x, y : y + 1 };
+			}
+		}
+		else {
+			if ( e.localY < -e.localX + cellSize ) {
+				// top
+				if ( y > 0 ) secondCell = { x : x, y : y - 1 };
+			} else {
+				// right
+				if ( x > size - 1 ) secondCell = { x : x + 1, y : y };
 			}
 		}
 
-		if ( walls.length > 0 ) {
-			// значит убираем стены
-			for ( wall in walls ) edges.remove(wall);
-		} else {
-			// значит ставим 4 стены
-			if ( x < size - 1 ) edges.push(new IntPair(IntPair.mapCell(x, y, size), IntPair.mapCell(x + 1, y, size)));
-			if ( x > 0 ) edges.push(new IntPair(IntPair.mapCell(x, y, size), IntPair.mapCell(x - 1, y, size)));
-			if ( y < size - 1 ) edges.push(new IntPair(IntPair.mapCell(x, y, size), IntPair.mapCell(x, y + 1, size)));
-			if ( y > 0 ) edges.push(new IntPair(IntPair.mapCell(x, y, size), IntPair.mapCell(x, y - 1, size)));
-		}
+		if ( secondCell != null ) {
+			var wallRemoved = false;
 
-		drawAll();	
+			for ( edge in edges ) {
+				var c1 = IntPair.unmapCell(edge.val1, size);
+				var c2 = IntPair.unmapCell(edge.val2, size);
+				if ( (x == c1.val1 && y == c1.val2 && secondCell.x == c2.val1 && secondCell.y == c2.val2)
+					|| (x == c2.val1 && y == c2.val2 && secondCell.x == c1.val1 && secondCell.y == c1.val2) ) {
+					edges.remove(edge);
+					wallRemoved = true;
+				}
+			}
+
+			if ( !wallRemoved ) {
+				edges.push(new IntPair(IntPair.mapCell(x, y, size), IntPair.mapCell(secondCell.x, secondCell.y, size)));
+			}
+
+			drawAll();
+		}
 	}
 
 	private function redrawWalls() {

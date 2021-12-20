@@ -65,29 +65,38 @@ class Hero extends Sprite {
 
 	public function moveByPath() {
 		if ( pathCache != null ) {
-			energy++;
-			for ( cellI => cell in pathCache ) {
-				if ( energy != 0 ) {
-					cellX = cell.x;
-					cellY = cell.y;
-				} else break;
+			(() -> {
 
-				if ( cellI + 1 != pathCache.length ) {
-					for ( edge in Game.inst.maze.edges ) {
-						var c1 = IntPair.unmapCell(edge.val1, Game.inst.stat.mazeSize); // cell 1
-						var c2 = IntPair.unmapCell(edge.val2, Game.inst.stat.mazeSize); // cell 2
-						if ( (c1.val1 == cell.x && c1.val2 == pathCache[cellI + 1].y && c2.val1 == pathCache[cellI + 1].x && c2.val2 == cell.y)
-							|| (c2.val1 == cell.x && c2.val2 == pathCache[cellI + 1].y && c1.val1 == pathCache[cellI + 1].x && c1.val2 == cell.y)
-						) {
-							sledgehammerUses--;
-							Game.inst.maze.edges.remove(edge);
-							break;
+				for ( cellI => cell in pathCache ) {
+
+					energy--;
+					setCellPosition(cell.x, cell.y);
+
+					if ( energy < 0 )
+						break;
+
+					if ( cellI + 1 != pathCache.length ) {
+						for ( edge in Game.inst.maze.edges ) {
+							var c1 = IntPair.unmapCell(edge.val1, Game.inst.stat.mazeSize); // cell 1
+							var c2 = IntPair.unmapCell(edge.val2, Game.inst.stat.mazeSize); // cell 2
+							if ( (c1.val1 == cell.x && c1.val2 == pathCache[cellI + 1].y && c2.val1 == pathCache[cellI + 1].x && c2.val2 == cell.y)
+								|| (c2.val1 == cell.x && c2.val2 == pathCache[cellI + 1].y && c1.val1 == pathCache[cellI + 1].x && c1.val2 == cell.y)
+							) {
+								if ( sledgehammerUses <= 0 ) {
+									return;
+								}
+								sledgehammerUses--;
+								Game.inst.maze.edges.remove(edge);
+								break;
+							}
 						}
 					}
 				}
-				energy--;
-			}
+				// для компенсации обработки нулевой точки
+			})();
 
+			energy++;
+			
 			Game.inst.maze.drawAll();
 			Game.inst.removeHeroPath();
 			pathCache = null;

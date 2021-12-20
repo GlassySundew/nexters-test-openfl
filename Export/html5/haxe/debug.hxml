@@ -2,9 +2,9 @@
 --macro lime._internal.macros.DefineMacro.run()
 -cp /home/glassysundew/lix/haxelib/lime/7,9,0/src
 -D lime=7.9.0
--cp /home/glassysundew/lix/haxelib/haxeui-openfl/1,3,0
+-cp /home/glassysundew/lix/haxelib/haxeui-openfl/git
 -D haxeui-openfl=1.3.0
--cp /home/glassysundew/lix/haxelib/haxeui-core/1,3,0
+-cp /home/glassysundew/lix/haxelib/haxeui-core/git
 -D haxeui-core=1.3.0
 --macro openfl.utils._internal.ExtraParamsMacro.include()
 -cp /home/glassysundew/lix/haxelib/openfl/9,1,0/src
@@ -24,7 +24,7 @@
 -D web
 --remap flash:openfl
 --connect
-6024
+6000
 -js Export/html5/bin/NextersTestOpenfl1.js
 -cp Export/html5/haxe
 -D html5

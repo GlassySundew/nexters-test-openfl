@@ -67,6 +67,14 @@ class Game {
 
 		Main.inst.stage.addEventListener(KeyboardEvent.KEY_DOWN, keyDown);
 		Main.inst.stage.addEventListener(KeyboardEvent.KEY_UP, keyUp);
+
+		Main.inst.uiManager.endTurnButton.onClick = Game.inst.endTurn;
+		Main.inst.uiManager.mazeClearButton.onClick = Game.inst.clearMap;
+		Main.inst.uiManager.addEnergyButton.onClick = ( e ) -> {
+			Game.inst.hero.energy += Std.parseInt(Main.inst.uiManager.addRandomWallsTextField.text);
+		};
+		Main.inst.uiManager.refresherButton.onClick = Main.inst.newGame;
+		Main.inst.uiManager.endTurnButton.onClick = Game.inst.endTurn;
 	}
 
 	private function keyDown( e : KeyboardEvent ) {
@@ -168,6 +176,7 @@ class Game {
 		maze.graphics.clear();
 		if ( heroPath != null ) heroPath.graphics.clear();
 		maze = null;
+		hero = null;
 
 		Main.inst.removeEventListener(KeyboardEvent.KEY_DOWN, keyDown);
 		Main.inst.removeEventListener(KeyboardEvent.KEY_UP, keyUp);

@@ -133,6 +133,8 @@ class AStar {
 			resultPath.push(cell);
 		}
 		resultPath.push(start);
+		trace(end.wallsDestroyed);
+
 		return resultPath;
 	}
 	/**
@@ -230,8 +232,13 @@ class AStar {
 					) ) {
 
 						for ( wall in behindWalls.copy() ) {
-							if ( (wall.f - wall.potentialF < 20 && wall.f != 0 && opened.length > 0)
-								|| wall.wallsDestroyed >= sledgehammerUses ) {
+							if ( 
+								// (
+								// wall.f - wall.potentialF < 20 
+								// &&
+								//  wall.f != 0 && opened.length > 0)
+								// || 
+								wall.wallsDestroyed >= sledgehammerUses - 1 ) {
 								behindWalls.remove(wall);
 								continue;
 							}
@@ -278,7 +285,7 @@ class AStar {
 			for ( adjCell in adjCells ) {
 
 				// "cell.g < adjCell.g - 20" - чтобы снова проходить тот же путь, но уже через сломанную стену
-				if ( (!closed.has(adjCell) || cell.g < adjCell.g - 20)
+				if ( (!closed.has(adjCell) || cell.g < adjCell.g - 10)
 					&& ensureThereWillBeNoLoops(adjCell, cell) ) {
 
 					if ( !wallExistsBetweenCells(adjCell, cell) ) {

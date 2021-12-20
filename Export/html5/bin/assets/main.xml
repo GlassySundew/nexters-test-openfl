@@ -1,14 +1,12 @@
-<vbox style="padding: 5px;spacing:10px">
+<vbox style="padding: 5px; spacing:10px;">
 	<style>
 		.bordered {
 			border: 1px solid #cbdbfc;
 			padding: 5px;
 		}
-		.
 	</style>
 
 	<hbox>
-
 		<vbox styleNames="bordered" style="minWidth:300px;">
 			<label text="Status:" />
 			<vbox styleNames="bordered" percentWidth="100">
@@ -30,14 +28,14 @@
 				<textfield text="40" id="addRandomWallsTextField" horizontalAlign="right" />
 
 				<button text="Add random walls: " id="addRandomWallsButton" verticalAlign="center" />
-				<textfield id="display" text="100" placeholder="''+40" />
+				<textfield text="100" />
 			</grid>
 
 			<label text="Config:" style="padding-top:10px;" />
 
 			<grid columns="2" width="100%">
 				<label text="M (maze size)" verticalAlign="center" width="100%" />
-				<textfield id="mConfig" text="40" horizontalAlign="right" width="100%" />
+				<textfield id="mConfig" value="40" horizontalAlign="right" width="100%" />
 
 				<label text="E (hero max energy)" verticalAlign="center" width="100%" />
 				<textfield id="eConfig" text="30" horizontalAlign="right" />
@@ -53,7 +51,8 @@
 			</grid>
 
 			<box style="padding-top:5px;" />
-			<button text="Refresh maze with given parameters" id="refresher" width="100%" verticalAlign="center" />
+
+			<button text="Refresh maze with given parameters" id="refresherButton" width="100%" verticalAlign="center" />
 
 		</vbox>
 
