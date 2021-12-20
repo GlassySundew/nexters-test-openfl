@@ -240,12 +240,10 @@ AStar.prototype = {
 				++_g4;
 				if((!this.closed.has(adjCell) || cell.g < adjCell.g - 20) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
 					if(!this.wallExistsBetweenCells(adjCell,cell)) {
-						if(this.opened.indexOf(adjCell) != -1) {
-							this.updateCell(adjCell,cell);
-						} else {
+						if(this.opened.indexOf(adjCell) == -1) {
 							this.opened.push(adjCell);
-							this.updateCell(adjCell,cell);
 						}
+						this.updateCell(adjCell,cell);
 					} else if(cell.g < this.energy && cell.wallsDestroyed < this.sledgehammerUses - 1) {
 						var potentialF = (10 * (Math.abs(adjCell.x - this.end.x) + Math.abs(adjCell.y - this.end.y)) | 0) + cell.g + 10;
 						if(adjCell.potentialF == 0 || adjCell.potentialF > potentialF) {
@@ -1166,7 +1164,7 @@ ApplicationMain.main = function() {
 ApplicationMain.create = function(config) {
 	var app = new openfl_display_Application();
 	ManifestResources.init(config);
-	app.meta.h["build"] = "9";
+	app.meta.h["build"] = "10";
 	app.meta.h["company"] = "Company Name";
 	app.meta.h["file"] = "NextersTestOpenfl1";
 	app.meta.h["name"] = "NextersTestOpenfl1";

@@ -175,9 +175,9 @@ class AStar {
 
 		Моё решение: мы обходим граф лабиринта по A*, и во все клетки, находящиеся
 		за стеной, пишем их потенциальное F, чтобы потом, когда закончатся клетки в opened, 
-		мы начали ломать стены с наименьшим potencialF 
-		, при этом перерасчитывая все клетки, даже те, что уже в closed,
-		с тем условием, если g стоимость была выше в соседней клетке
+		мы начали ломать стены с наименьшим potencialF, 
+		при этом перерасчитывая все клетки, даже те, что уже в closed,
+		с тем условием, если g стоимость выше в соседней клетке
 
 		путь иногда находится криво и может не считать стены, 
 	**/
@@ -282,14 +282,9 @@ class AStar {
 					&& ensureThereWillBeNoLoops(adjCell, cell) ) {
 
 					if ( !wallExistsBetweenCells(adjCell, cell) ) {
-						if ( opened.contains(adjCell) ) {
-							// if ( adjCell.g > cell.g + 10 )
-							updateCell(adjCell, cell);
-						} else {
-							// if ( cell.g < energy + 10 || behindWalls.length <= 1 )
+						if ( !opened.contains(adjCell) )
 							opened.push(adjCell);
-							updateCell(adjCell, cell);
-						}
+						updateCell(adjCell, cell);
 					} else {
 						// the adjCell is located over the wall
 						// we wont break walls after our energy runs out
