@@ -196,6 +196,7 @@ AStar.prototype = {
 					this.opened.push(cell1);
 					cell1 = cellBehindWall;
 					this.updateCell(cell1,cell1.wallbreakingParent);
+					cell1.f += 10;
 					cell1.wallsDestroyed++;
 					var parent = cell1.parent;
 					while(parent != null) {
@@ -1142,7 +1143,7 @@ ApplicationMain.main = function() {
 ApplicationMain.create = function(config) {
 	var app = new openfl_display_Application();
 	ManifestResources.init(config);
-	app.meta.h["build"] = "13";
+	app.meta.h["build"] = "14";
 	app.meta.h["company"] = "Company Name";
 	app.meta.h["file"] = "NextersTestOpenfl1";
 	app.meta.h["name"] = "NextersTestOpenfl1";
