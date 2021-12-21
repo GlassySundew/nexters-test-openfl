@@ -130,11 +130,15 @@ AStar.prototype = {
 		var lowest = rootIndex;
 		var leftChild = rootIndex * 2 + 1;
 		var rightChild = rootIndex * 2 + 2;
-		if(leftChild < size && array[leftChild].f < array[lowest].f) {
-			lowest = leftChild;
-		}
-		if(rightChild < size && array[rightChild].f < array[lowest].f) {
-			lowest = rightChild;
+		try {
+			if(leftChild < size && array[leftChild].f < array[lowest].f) {
+				lowest = leftChild;
+			}
+			if(rightChild < size && array[rightChild].f < array[lowest].f) {
+				lowest = rightChild;
+			}
+		} catch( _g ) {
+			return;
 		}
 		if(lowest != rootIndex) {
 			var temp = array[rootIndex];
@@ -147,11 +151,11 @@ AStar.prototype = {
 		this.opened.push(this.start);
 		while(this.opened.length > 0 || this.behindWalls.length > 0) {
 			var cell = null;
-			var size = this.opened.length >> 1;
-			var start = 0;
-			while(start < size) {
+			var size = this.opened.length;
+			var start = size;
+			while(start > -1) {
 				this.heapify(this.opened,size,start);
-				++start;
+				--start;
 			}
 			var cell1 = this.opened[0];
 			HxOverrides.remove(this.opened,cell1);
@@ -1138,7 +1142,7 @@ ApplicationMain.main = function() {
 ApplicationMain.create = function(config) {
 	var app = new openfl_display_Application();
 	ManifestResources.init(config);
-	app.meta.h["build"] = "11";
+	app.meta.h["build"] = "13";
 	app.meta.h["company"] = "Company Name";
 	app.meta.h["file"] = "NextersTestOpenfl1";
 	app.meta.h["name"] = "NextersTestOpenfl1";
@@ -24347,13 +24351,13 @@ haxe_ui_styles_elements_RuleElement.prototype = {
 					var value = new haxe_ui_styles_elements_Directive("font-bold",haxe_ui_styles_Value.VBool(true));
 					this1.h["font-bold"] = value;
 				} else if(s == "italic") {
-					var this11 = this.directives;
+					var this2 = this.directives;
 					var value1 = new haxe_ui_styles_elements_Directive("font-italic",haxe_ui_styles_Value.VBool(true));
-					this11.h["font-italic"] = value1;
+					this2.h["font-italic"] = value1;
 				} else if(s == "underline") {
-					var this12 = this.directives;
+					var this3 = this.directives;
 					var value2 = new haxe_ui_styles_elements_Directive("font-underline",haxe_ui_styles_Value.VBool(true));
-					this12.h["font-underline"] = value2;
+					this3.h["font-underline"] = value2;
 				}
 			}
 			break;
@@ -28405,10 +28409,10 @@ lime__$internal_backend_html5_HTML5HTTPRequest.prototype = {
 				var value = this.parent.formData.h[key];
 				if(key.indexOf("[]") > -1 && ((value) instanceof Array)) {
 					var _g = [];
-					var x1 = $getIterator(value);
-					while(x1.hasNext()) {
-						var x11 = x1.next();
-						_g.push(encodeURIComponent(x11));
+					var x = $getIterator(value);
+					while(x.hasNext()) {
+						var x1 = x.next();
+						_g.push(encodeURIComponent(x1));
 					}
 					var arrayValue = _g.join("&amp;" + key + "=");
 					query += encodeURIComponent(key) + "=" + arrayValue;
@@ -31779,8 +31783,8 @@ lime__$internal_graphics_ImageDataUtil.getPixels = function(image,rect,format) {
 				pixel = argb;
 				break;
 			case 2:
-				var this11 = 0;
-				var bgra1 = this11;
+				var this2 = 0;
+				var bgra1 = this2;
 				bgra1 = (pixel >>> 8 & 255 & 255) << 24 | (pixel >>> 16 & 255 & 255) << 16 | (pixel >>> 24 & 255 & 255) << 8 | pixel & 255 & 255;
 				bgra = bgra1;
 				pixel = bgra;
@@ -32429,8 +32433,8 @@ lime__$internal_graphics_ImageDataUtil.setPixels = function(image,rect,bytePoint
 				break;
 			case 2:
 				var bgra = color;
-				var this11 = 0;
-				var rgba1 = this11;
+				var this2 = 0;
+				var rgba1 = this2;
 				rgba1 = (bgra >>> 8 & 255 & 255) << 24 | (bgra >>> 16 & 255 & 255) << 16 | (bgra >>> 24 & 255 & 255) << 8 | bgra & 255 & 255;
 				pixel = rgba1;
 				break;
@@ -44501,7 +44505,7 @@ var lime_utils_AssetCache = function() {
 	this.audio = new haxe_ds_StringMap();
 	this.font = new haxe_ds_StringMap();
 	this.image = new haxe_ds_StringMap();
-	this.version = 558123;
+	this.version = 737411;
 };
 $hxClasses["lime.utils.AssetCache"] = lime_utils_AssetCache;
 lime_utils_AssetCache.__name__ = "lime.utils.AssetCache";
@@ -82443,9 +82447,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.f = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.f = this_low;
 	var b = 56;
 	b &= 63;
 	var a;
@@ -82461,9 +82465,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.m = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.m = this_low;
 	var b = 52;
 	b &= 63;
 	var a;
@@ -82479,9 +82483,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.w = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.w = this_low;
 	var b = 48;
 	b &= 63;
 	var a;
@@ -82497,9 +82501,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.s = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.s = this_low;
 	var b = 44;
 	b &= 63;
 	var a;
@@ -82515,9 +82519,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.d = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.d = this_low;
 	var b = 40;
 	b &= 63;
 	var a;
@@ -82533,9 +82537,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.t = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.t = this_low;
 	var b = 32;
 	b &= 63;
 	var a;
@@ -82551,9 +82555,9 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.type = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.type = this_low;
 	var b = 16;
 	b &= 63;
 	var a;
@@ -82569,14 +82573,14 @@ openfl_display3D__$internal__$AGALConverter_SamplerRegister.parse = function(v,p
 	}
 	var b_high = 0;
 	var b_low = 255;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.b = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.b = this_low;
 	var b_high = 0;
 	var b_low = 65535;
-	var this1_high = v.high & b_high;
-	var this1_low = v.low & b_low;
-	sr.n = this1_low;
+	var this_high = v.high & b_high;
+	var this_low = v.low & b_low;
+	sr.n = this_low;
 	return sr;
 };
 openfl_display3D__$internal__$AGALConverter_SamplerRegister.prototype = {
@@ -82661,9 +82665,9 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 1;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.d = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.d = this_low;
 	var b = 48;
 	b &= 63;
 	var a;
@@ -82679,9 +82683,9 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 3;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.q = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.q = this_low;
 	var b = 40;
 	b &= 63;
 	var a;
@@ -82697,9 +82701,9 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.itype = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.itype = this_low;
 	var b = 32;
 	b &= 63;
 	var a;
@@ -82715,9 +82719,9 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 15;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.type = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.type = this_low;
 	var b = 24;
 	b &= 63;
 	var a;
@@ -82733,9 +82737,9 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 255;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.s = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.s = this_low;
 	var b = 16;
 	b &= 63;
 	var a;
@@ -82751,14 +82755,14 @@ openfl_display3D__$internal__$AGALConverter_SourceRegister.parse = function(v,pr
 	}
 	var b_high = 0;
 	var b_low = 255;
-	var this1_high = a.high & b_high;
-	var this1_low = a.low & b_low;
-	sr.o = this1_low;
+	var this_high = a.high & b_high;
+	var this_low = a.low & b_low;
+	sr.o = this_low;
 	var b_high = 0;
 	var b_low = 65535;
-	var this1_high = v.high & b_high;
-	var this1_low = v.low & b_low;
-	sr.n = this1_low;
+	var this_high = v.high & b_high;
+	var this_low = v.low & b_low;
+	sr.n = this_low;
 	sr.sourceMask = sourceMask;
 	return sr;
 };

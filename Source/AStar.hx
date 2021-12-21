@@ -34,6 +34,7 @@ class Cell {
 class AStar {
 	/**list of available cells to enter**/
 	public var edges : Set<tools.IntPair>;
+
 	private var opened : Array<Cell>;
 	/**set of cells that can no longer be entered**/
 	private var closed : Set<Cell>;
@@ -144,15 +145,21 @@ class AStar {
 		heapify opened array by f param from bottom to top for faster performance with opened.pop()
 	**/
 	private function heapify( array : Array<Cell>, size : Int, rootIndex : Int ) {
+
 		var lowest = rootIndex;
 		var leftChild = (rootIndex * 2) + 1;
 		var rightChild = (rootIndex * 2) + 2;
 
-		if ( leftChild < size && array[leftChild].f < array[lowest].f )
-			lowest = leftChild;
+		try {
+			if ( leftChild < size && array[leftChild].f < array[lowest].f )
+				lowest = leftChild;
 
-		if ( rightChild < size && array[rightChild].f < array[lowest].f )
-			lowest = rightChild;
+			if ( rightChild < size && array[rightChild].f < array[lowest].f )
+				lowest = rightChild;
+		
+		} catch( e ) {
+			return;
+		}
 
 		if ( lowest != rootIndex ) {
 			var temp = array[rootIndex];
@@ -181,13 +188,12 @@ class AStar {
 			var cell = null;
 			// heapify opened array
 			{
-				var size = opened.length >> 1;
-				var start = 0;
-				while( start < size ) {
+				var size = opened.length;
+				var start = size;
+				while( start > -1 ) {
 					heapify(opened, size, start);
-					start++;
+					start--;
 				}
-
 			}
 
 			var cell = opened[0];
