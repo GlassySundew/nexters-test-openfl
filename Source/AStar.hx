@@ -252,7 +252,7 @@ class AStar {
 					opened.push(cell);
 					cell = cellBehindWall;
 					updateCell(cell, cell.wallbreakingParent);
-					cell.f += 10;
+					cell.g += 10;
 					cell.wallsDestroyed++;
 
 					var parent = cell.parent;
