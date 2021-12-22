@@ -4,6 +4,8 @@ import haxe.ds.GenericStack;
 import tools.IntPair;
 import js.lib.Set;
 
+using tools.BinaryHeapPQ;
+
 typedef Point = {
 	public var x : Int;
 	public var y : Int;
@@ -35,7 +37,7 @@ class AStar {
 	/**list of available cells to enter**/
 	public var edges : Set<tools.IntPair>;
 
-	private var opened : Array<Cell>;
+	private var opened : tools.BinaryHeapPQ.ArrayPQ<Cell>;
 	/**set of cells that can no longer be entered**/
 	private var closed : Set<Cell>;
 	/** mark all cells that are cut off with walls from the one we are in **/
@@ -76,14 +78,14 @@ class AStar {
 		this.behindWalls = behindWalls == null ? [] : behindWalls;
 		this.closed = new Set(closed);
 
-		opened = [];
-
 		cells = [for ( y in 0...size ) [for ( x in 0...size ) new Cell(x, y)]];
 
 		this.start = cells[start.y][start.x];
 		this.end = cells[end.y][end.x];
 
 		this.start.h = Std.int(getHeuristic(this.start));
+
+		opened = { data : [this.start] };
 	}
 
 	private function getAdjacentCells( cell : Cell ) {
@@ -122,6 +124,7 @@ class AStar {
 			resultPath.push(cell);
 		}
 		resultPath.push(start);
+		trace(end.wallsDestroyed, behindWalls.length);
 
 		return resultPath;
 	}
@@ -139,35 +142,12 @@ class AStar {
 
 		return true;
 	}
+
+	private inline function endWasReached() return end.parent != null;
 	/**
-		heapPush и getMin напишу завтра
-
-		heapify opened array by f param from bottom to top for faster performance with opened.pop()
+		comparator for storing cell with lowest f higher
 	**/
-	private function heapify( array : Array<Cell>, size : Int, rootIndex : Int ) {
-
-		var lowest = rootIndex;
-		var leftChild = (rootIndex * 2) + 1;
-		var rightChild = (rootIndex * 2) + 2;
-
-		try {
-			if ( leftChild < size && array[leftChild].f < array[lowest].f )
-				lowest = leftChild;
-
-			if ( rightChild < size && array[rightChild].f < array[lowest].f )
-				lowest = rightChild;
-		
-		} catch( e ) {
-			return;
-		}
-
-		if ( lowest != rootIndex ) {
-			var temp = array[rootIndex];
-			array[rootIndex] = array[lowest];
-			array[lowest] = temp;
-			heapify(array, size, lowest);
-		}
-	}
+	private inline function cellComparator( cell1 : Cell, cell2 : Cell ) : Int return cell2.f - cell1.f;
 	/** 
 		should only be called once per AStar instance
 
@@ -181,90 +161,79 @@ class AStar {
 	**/
 	public function findPath() {
 
-		opened.push(start);
 		// "behindWalls.length > 0" чтобы сломать стены, даже если персонаж замурован в 1 клетке
-		while( opened.length > 0 || behindWalls.length > 0 ) {
+		while( !(opened.isEmpty() && behindWalls.length == 0) ) {
 
-			var cell = null;
-			// heapify opened array
-			{
-				var size = opened.length;
-				var start = size;
-				while( start > -1 ) {
-					heapify(opened, size, start);
-					start--;
-				}
-			}
+			var cell = opened.deleteTop(cellComparator);
 
-			var cell = opened[0];
-			opened.remove(cell);
-
-			if ( (cell == end && (behindWalls.length == 0 || end.wallsDestroyed == 0)) || (end.g == start.h) ) {
-				return displayPath();
-			}
-
-			opened.remove(cell);
 			closed.add(cell);
 
-			// если здесь клетка null, то до выхода нельзя добраться, не сломав стену
-			while( (cell == null || cell.g >= energy)
-				&& behindWalls.length > 0
-			) {
+			var cellBehindWall = null;
 
-				var cellBehindWall = null;
-				// возвращает самую выгодную ячейку, в которую можно перейти, сломав стену
-				while(
-					behindWalls.length > 0
-					&& (cellBehindWall == null
-						|| cellBehindWall.g > energy
-					) ) {
+			if ( endWasReached() ) {
+				while( cellBehindWall == null && behindWalls.length > 0 ) {
+					for ( wall in behindWalls.copy() ) {
+						// ждём пока opened не обработает эту клетку, либо ломаем, потому что opened закончился
+						// if ( wall.f == 0
+						// 	&& (opened.size() > 0 || (wall.wallbreakingParent == start))
+						// 	&& !endWasReached() )
+						// 	continue;
 
-						for ( wall in behindWalls.copy() ) {
-							if ( (
-								wall.f - wall.potentialF < 10
-								&&
-								wall.f != 0 && opened.length > 0
-							)
-								|| wall.wallsDestroyed > sledgehammerUses
-								|| wall.wallbreakingParent.wallsDestroyed > sledgehammerUses - 1
-							) {
-								behindWalls.remove(wall);
-								continue;
-							}
-							if ( cellBehindWall == null ) {
-								cellBehindWall = wall;
-								continue;
-							}
-							if ( cellBehindWall.potentialF > wall.potentialF )
-								cellBehindWall = wall;
+						if ( (
+							wall.f != 0
+							&& (wall.f - wall.potentialF < 10 || wall.g < wall.wallbreakingParent.g - 10)
+							&& opened.size() > 0
+						)
+							|| wall.wallbreakingParent.wallsDestroyed > sledgehammerUses - 1
+						) {
+							behindWalls.remove(wall);
+							continue;
 						}
-
-						if ( cellBehindWall != null && !ensureThereWillBeNoLoops(cellBehindWall, cellBehindWall.wallbreakingParent) ) {
-							behindWalls.remove(cellBehindWall);
-							cellBehindWall = null;
+						if ( cellBehindWall == null ) {
+							cellBehindWall = wall;
+							continue;
 						}
+						// if ( cellBehindWall.f - cellBehindWall.potentialF < wall.f - wall.potentialF ) {
+						if ( cellBehindWall.potentialF > wall.potentialF ) {
+							cellBehindWall = wall;
+						}
+					}
 
-						if ( cellBehindWall != null && !behindWalls.remove(cellBehindWall) ) break;
+					if ( cellBehindWall != null && !ensureThereWillBeNoLoops(cellBehindWall, cellBehindWall.wallbreakingParent) ) {
+						behindWalls.remove(cellBehindWall);
+						cellBehindWall = null;
+					}
+
+					if ( cellBehindWall != null && !behindWalls.remove(cellBehindWall) ) break;
 				}
 
-				if ( cellBehindWall != null && cellBehindWall.wallsDestroyed <= sledgehammerUses ) {
+				if ( cellBehindWall != null ) {
+					trace("breaking wall " + cellBehindWall.x, cellBehindWall.y, "from ", cellBehindWall.wallbreakingParent.x, cellBehindWall.wallbreakingParent.y);
 
-					opened.push(cell);
+					if ( cell != null ) {
+						opened.insert(cellComparator, cell);
+						closed.delete(cell);
+					}
+
 					cell = cellBehindWall;
+					opened.insert(cellComparator, cell);
+
 					updateCell(cell, cell.wallbreakingParent);
-					cell.g += 10;
+					cell.g += 1;
+					cell.f += 1;
 					cell.wallsDestroyed++;
+					// cell.potentialF = 0;
+					// cell.wallbreakingParent = null;
 
 					var parent = cell.parent;
 					while( parent != null ) {
 						parent.wallsDestroyed = cell.wallsDestroyed;
 						parent = parent.parent;
 					}
-					break;
 				}
 			}
 
-			if ( (cell == end && behindWalls.length == 0) || (end.g == start.h) ) {
+			if ( behindWalls.length == 0 && endWasReached() ) {
 				return displayPath();
 			}
 
@@ -274,7 +243,7 @@ class AStar {
 
 			for ( adjCell in adjCells ) {
 
-				// "cell.g < adjCell.g - 20" - чтобы снова проходить тот же путь, но уже через сломанную стену
+				// "cell.g < adjCell.g - 10" - чтобы снова проходить тот же путь, но уже через сломанную стену
 				if ( (!closed.has(adjCell) || cell.g < adjCell.g - 10)
 					&& ensureThereWillBeNoLoops(adjCell, cell) ) {
 
@@ -284,9 +253,13 @@ class AStar {
 						edges,
 						size) ) {
 
-						if ( !opened.contains(adjCell) )
-							opened.push(adjCell);
-						updateCell(adjCell, cell);
+						if ( opened.data.contains(adjCell) ) {
+							if ( cell.g < adjCell.g - 10 )
+								updateCell(adjCell, cell);
+						} else {
+							updateCell(adjCell, cell);
+							opened.insert(cellComparator, adjCell);
+						}
 					} else {
 						// the adjCell is located over the wall
 						// we wont break walls after our energy runs out
@@ -297,15 +270,23 @@ class AStar {
 							if ( adjCell.potentialF == 0 || adjCell.potentialF > potentialF ) {
 								adjCell.potentialF = potentialF;
 								adjCell.wallbreakingParent = cell;
-								adjCell.wallsDestroyed = cell.wallsDestroyed;
 								behindWalls.push(adjCell);
 							}
 						}
+
+						// if ( cell.g < energy && cell.wallsDestroyed < sledgehammerUses ) {
+						// 	updateCell(adjCell, cell);
+						// 	adjCell.g += 20;
+						// 	adjCell.f += 20;
+
+						// 	adjCell.wallsDestroyed++;
+						// 	opened.insert(cellComparator, adjCell);
+						// }
 					}
 				}
 			}
 		}
-
+		trace("leaving loop");
 		return displayPath();
 	}
 }

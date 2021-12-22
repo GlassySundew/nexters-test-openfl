@@ -40,7 +40,6 @@ var AStar = function(start,end,size,energy,sledgehammerUses,teleportCost,telepor
 	this.edges = new Set(edges);
 	this.behindWalls = behindWalls == null ? [] : behindWalls;
 	this.closed = new Set(closed);
-	this.opened = [];
 	var _g = [];
 	var _g1 = 0;
 	var _g2 = size;
@@ -60,6 +59,7 @@ var AStar = function(start,end,size,energy,sledgehammerUses,teleportCost,telepor
 	this.end = this.cells[end.y][end.x];
 	var cell = this.start;
 	this.start.h = 10 * (Math.abs(cell.x - this.end.x) + Math.abs(cell.y - this.end.y)) | 0;
+	this.opened = { data : [this.start]};
 };
 $hxClasses["AStar"] = AStar;
 AStar.__name__ = "AStar";
@@ -114,6 +114,7 @@ AStar.prototype = {
 			resultPath.push(cell);
 		}
 		resultPath.push(this.start);
+		haxe_Log.trace(this.end.wallsDestroyed,{ fileName : "Source/AStar.hx", lineNumber : 127, className : "AStar", methodName : "displayPath", customParams : [this.behindWalls.length]});
 		return resultPath;
 	}
 	,ensureThereWillBeNoLoops: function(adjCell,cell) {
@@ -126,53 +127,25 @@ AStar.prototype = {
 		}
 		return true;
 	}
-	,heapify: function(array,size,rootIndex) {
-		var lowest = rootIndex;
-		var leftChild = rootIndex * 2 + 1;
-		var rightChild = rootIndex * 2 + 2;
-		try {
-			if(leftChild < size && array[leftChild].f < array[lowest].f) {
-				lowest = leftChild;
-			}
-			if(rightChild < size && array[rightChild].f < array[lowest].f) {
-				lowest = rightChild;
-			}
-		} catch( _g ) {
-			return;
-		}
-		if(lowest != rootIndex) {
-			var temp = array[rootIndex];
-			array[rootIndex] = array[lowest];
-			array[lowest] = temp;
-			this.heapify(array,size,lowest);
-		}
+	,endWasReached: function() {
+		return this.end.parent != null;
+	}
+	,cellComparator: function(cell1,cell2) {
+		return cell2.f - cell1.f;
 	}
 	,findPath: function() {
-		this.opened.push(this.start);
-		while(this.opened.length > 0 || this.behindWalls.length > 0) {
-			var cell = null;
-			var size = this.opened.length;
-			var start = size;
-			while(start > -1) {
-				this.heapify(this.opened,size,start);
-				--start;
-			}
-			var cell1 = this.opened[0];
-			HxOverrides.remove(this.opened,cell1);
-			if(cell1 == this.end && (this.behindWalls.length == 0 || this.end.wallsDestroyed == 0) || this.end.g == this.start.h) {
-				return this.displayPath();
-			}
-			HxOverrides.remove(this.opened,cell1);
-			this.closed.add(cell1);
-			while((cell1 == null || cell1.g >= this.energy) && this.behindWalls.length > 0) {
-				var cellBehindWall = null;
-				while(this.behindWalls.length > 0 && (cellBehindWall == null || cellBehindWall.g > this.energy)) {
+		while(!(this.opened.data.length == 0 && this.behindWalls.length == 0)) {
+			var cell = tools_BinaryHeapPQ.deleteTop(this.opened,$bind(this,this.cellComparator));
+			this.closed.add(cell);
+			var cellBehindWall = null;
+			if(this.end.parent != null) {
+				while(cellBehindWall == null && this.behindWalls.length > 0) {
 					var _g = 0;
 					var _g1 = this.behindWalls.slice();
 					while(_g < _g1.length) {
 						var wall = _g1[_g];
 						++_g;
-						if(wall.f - wall.potentialF < 10 && wall.f != 0 && this.opened.length > 0 || wall.wallsDestroyed > this.sledgehammerUses || wall.wallbreakingParent.wallsDestroyed > this.sledgehammerUses - 1) {
+						if(wall.f != 0 && (wall.f - wall.potentialF < 10 || wall.g < wall.wallbreakingParent.g - 10) && this.opened.data.length > 0 || wall.wallbreakingParent.wallsDestroyed > this.sledgehammerUses - 1) {
 							HxOverrides.remove(this.behindWalls,wall);
 							continue;
 						}
@@ -192,49 +165,58 @@ AStar.prototype = {
 						break;
 					}
 				}
-				if(cellBehindWall != null && cellBehindWall.wallsDestroyed <= this.sledgehammerUses) {
-					this.opened.push(cell1);
-					cell1 = cellBehindWall;
-					this.updateCell(cell1,cell1.wallbreakingParent);
-					cell1.g += 10;
-					cell1.wallsDestroyed++;
-					var parent = cell1.parent;
+				if(cellBehindWall != null) {
+					haxe_Log.trace("breaking wall " + cellBehindWall.x,{ fileName : "Source/AStar.hx", lineNumber : 211, className : "AStar", methodName : "findPath", customParams : [cellBehindWall.y,"from ",cellBehindWall.wallbreakingParent.x,cellBehindWall.wallbreakingParent.y]});
+					if(cell != null) {
+						tools_BinaryHeapPQ.insert(this.opened,$bind(this,this.cellComparator),cell);
+						this.closed.delete(cell);
+					}
+					cell = cellBehindWall;
+					tools_BinaryHeapPQ.insert(this.opened,$bind(this,this.cellComparator),cell);
+					this.updateCell(cell,cell.wallbreakingParent);
+					cell.g += 1;
+					cell.f += 1;
+					cell.wallsDestroyed++;
+					var parent = cell.parent;
 					while(parent != null) {
-						parent.wallsDestroyed = cell1.wallsDestroyed;
+						parent.wallsDestroyed = cell.wallsDestroyed;
 						parent = parent.parent;
 					}
-					break;
 				}
 			}
-			if(cell1 == this.end && this.behindWalls.length == 0 || this.end.g == this.start.h) {
+			if(this.behindWalls.length == 0 && this.end.parent != null) {
 				return this.displayPath();
 			}
-			if(cell1 == null) {
+			if(cell == null) {
 				return null;
 			}
-			var adjCells = this.getAdjacentCells(cell1);
+			var adjCells = this.getAdjacentCells(cell);
 			var _g2 = 0;
 			while(_g2 < adjCells.length) {
 				var adjCell = adjCells[_g2];
 				++_g2;
-				if((!this.closed.has(adjCell) || cell1.g < adjCell.g - 10) && this.ensureThereWillBeNoLoops(adjCell,cell1)) {
-					if(tools_IntPair.findWallBetweenTwoCells({ x : adjCell.x, y : adjCell.y},{ x : cell1.x, y : cell1.y},this.edges,this.size) == null) {
-						if(this.opened.indexOf(adjCell) == -1) {
-							this.opened.push(adjCell);
+				if((!this.closed.has(adjCell) || cell.g < adjCell.g - 10) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
+					if(tools_IntPair.findWallBetweenTwoCells({ x : adjCell.x, y : adjCell.y},{ x : cell.x, y : cell.y},this.edges,this.size) == null) {
+						if(this.opened.data.indexOf(adjCell) != -1) {
+							if(cell.g < adjCell.g - 10) {
+								this.updateCell(adjCell,cell);
+							}
+						} else {
+							this.updateCell(adjCell,cell);
+							tools_BinaryHeapPQ.insert(this.opened,$bind(this,this.cellComparator),adjCell);
 						}
-						this.updateCell(adjCell,cell1);
-					} else if(cell1.g < this.energy && cell1.wallsDestroyed < this.sledgehammerUses) {
-						var potentialF = (10 * (Math.abs(adjCell.x - this.end.x) + Math.abs(adjCell.y - this.end.y)) | 0) + cell1.g + 10;
+					} else if(cell.g < this.energy && cell.wallsDestroyed < this.sledgehammerUses) {
+						var potentialF = (10 * (Math.abs(adjCell.x - this.end.x) + Math.abs(adjCell.y - this.end.y)) | 0) + cell.g + 10;
 						if(adjCell.potentialF == 0 || adjCell.potentialF > potentialF) {
 							adjCell.potentialF = potentialF;
-							adjCell.wallbreakingParent = cell1;
-							adjCell.wallsDestroyed = cell1.wallsDestroyed;
+							adjCell.wallbreakingParent = cell;
 							this.behindWalls.push(adjCell);
 						}
 					}
 				}
 			}
 		}
+		haxe_Log.trace("leaving loop",{ fileName : "Source/AStar.hx", lineNumber : 289, className : "AStar", methodName : "findPath"});
 		return this.displayPath();
 	}
 	,__class__: AStar
@@ -1143,7 +1125,7 @@ ApplicationMain.main = function() {
 ApplicationMain.create = function(config) {
 	var app = new openfl_display_Application();
 	ManifestResources.init(config);
-	app.meta.h["build"] = "15";
+	app.meta.h["build"] = "16";
 	app.meta.h["company"] = "Company Name";
 	app.meta.h["file"] = "NextersTestOpenfl1";
 	app.meta.h["name"] = "NextersTestOpenfl1";
@@ -4110,6 +4092,7 @@ Game.prototype = {
 		var path = astar7.findPath();
 		if(path != null) {
 			var availableEnergy = this.hero.energy;
+			var wallsToDestroy = 0;
 			path.reverse();
 			var _g_current = 0;
 			var _g_array = path;
@@ -4123,6 +4106,7 @@ Game.prototype = {
 				}
 				--availableEnergy;
 				if(tools_IntPair.findWallBetweenTwoCells({ x : cell.x, y : cell.y},{ x : path[i + 1].x, y : path[i + 1].y},astar7.edges,this.stat.mazeSize) != null) {
+					++wallsToDestroy;
 					this.drawCross((cell.x + Math.abs((path[i + 1].y - cell.y) / 2) + Math.max(path[i + 1].x - cell.x,0)) * this.maze.cellSize,(cell.y + Math.abs((path[i + 1].x - cell.x) / 2) + Math.max(path[i + 1].y - cell.y,0)) * this.maze.cellSize,this.heroPath.get_graphics());
 				}
 				if(availableEnergy < 0) {
@@ -4134,9 +4118,9 @@ Game.prototype = {
 				this.heroPath.get_graphics().lineTo(path[i + 1].x * this.maze.cellSize + this.maze.cellSize / 2,path[i + 1].y * this.maze.cellSize + this.maze.cellSize / 2);
 			}
 			this.hero.pathCache = path;
-			this.maze.displayTooltip((path[path.length - 1].x + 2) * this.maze.cellSize,path[path.length - 1].y * this.maze.cellSize,"cost: " + (path.length - 1));
+			this.maze.displayTooltip((path[path.length - 1].x + 2) * this.maze.cellSize,path[path.length - 1].y * this.maze.cellSize,"cost: " + (path.length - 1) + " walls: " + wallsToDestroy);
 		} else {
-			haxe_Log.trace("was not able to find path",{ fileName : "Source/Game.hx", lineNumber : 153, className : "Game", methodName : "getPathPreviewFromHero"});
+			haxe_Log.trace("was not able to find path",{ fileName : "Source/Game.hx", lineNumber : 154, className : "Game", methodName : "getPathPreviewFromHero"});
 		}
 		this.heroPath.get_graphics().endFill();
 	}
@@ -4195,6 +4179,7 @@ var Hero = function(cellX,cellY) {
 	var bitmapData = openfl_utils_Assets.getBitmapData("assets/doomguy.png");
 	var bitmap = new openfl_display_Bitmap(bitmapData);
 	this.addChild(bitmap);
+	this.mouseEnabled = false;
 	this.set_cellX(cellX);
 	this.set_cellY(cellY);
 };
@@ -44506,7 +44491,7 @@ var lime_utils_AssetCache = function() {
 	this.audio = new haxe_ds_StringMap();
 	this.font = new haxe_ds_StringMap();
 	this.image = new haxe_ds_StringMap();
-	this.version = 737411;
+	this.version = 278805;
 };
 $hxClasses["lime.utils.AssetCache"] = lime_utils_AssetCache;
 lime_utils_AssetCache.__name__ = "lime.utils.AssetCache";
@@ -95698,6 +95683,52 @@ openfl_utils__$internal_TouchData.prototype = {
 	}
 	,__class__: openfl_utils__$internal_TouchData
 };
+var tools_BinaryHeapPQ = function() { };
+$hxClasses["tools.BinaryHeapPQ"] = tools_BinaryHeapPQ;
+tools_BinaryHeapPQ.__name__ = "tools.BinaryHeapPQ";
+tools_BinaryHeapPQ.insert = function(pq,comparator,value) {
+	pq.data.push(value);
+	tools_BinaryHeapPQ.promote(pq,comparator,pq.data.length - 1);
+};
+tools_BinaryHeapPQ.deleteTop = function(pq,comparator) {
+	var topVal = pq.data[0];
+	if(pq.data.length > 1) {
+		pq.data[0] = pq.data.pop();
+	} else {
+		pq.data = [];
+	}
+	tools_BinaryHeapPQ.demote(pq,comparator,0);
+	return topVal;
+};
+tools_BinaryHeapPQ.isEmpty = function(pq) {
+	return pq.data.length == 0;
+};
+tools_BinaryHeapPQ.top = function(pq,comparator) {
+	return pq.data[0];
+};
+tools_BinaryHeapPQ.size = function(pq) {
+	return pq.data.length;
+};
+tools_BinaryHeapPQ.promote = function(pq,comparator,index) {
+	while(index > 1 && comparator(pq.data[index / 2 | 0],pq.data[index]) < 0) {
+		tools_SortUtil.arraySwapIndices(pq.data,index / 2 | 0,index);
+		index = index / 2 | 0;
+	}
+};
+tools_BinaryHeapPQ.demote = function(pq,comparator,index) {
+	var len = pq.data.length - 1;
+	while(index * 2 <= len) {
+		var childIndex = index * 2;
+		if(childIndex < len && comparator(pq.data[childIndex],pq.data[childIndex + 1]) < 0) {
+			++childIndex;
+		}
+		if(comparator(pq.data[index],pq.data[childIndex]) >= 0) {
+			break;
+		}
+		tools_SortUtil.arraySwapIndices(pq.data,index,childIndex);
+		index = childIndex;
+	}
+};
 var tools_DisjointSets = function(numElements) {
 	var this1 = new Array(numElements);
 	this.s = this1;
@@ -95873,6 +95904,51 @@ tools_ReverseArrayKeyValueIterator.prototype = {
 		return { value : this.arr[this.i], key : this.i--};
 	}
 	,__class__: tools_ReverseArrayKeyValueIterator
+};
+var tools_SortUtil = function() { };
+$hxClasses["tools.SortUtil"] = tools_SortUtil;
+tools_SortUtil.__name__ = "tools.SortUtil";
+tools_SortUtil.arraySwapIndices = function(array,index1,index2) {
+	var temp = array[index1];
+	array[index1] = array[index2];
+	array[index2] = temp;
+};
+tools_SortUtil.arraySwapIndicesIfLess = function(array,comparator,index1,index2) {
+	if(comparator(array[index1],array[index2]) < 0) {
+		tools_SortUtil.arraySwapIndices(array,index1,index2);
+		return true;
+	}
+	return false;
+};
+tools_SortUtil.arrayIsSorted = function(array,comparator) {
+	var len = array.length;
+	var _g = 1;
+	var _g1 = len;
+	while(_g < _g1) {
+		var i = _g++;
+		if(comparator(array[i],array[i - 1]) < 0) {
+			return false;
+		}
+	}
+	return true;
+};
+tools_SortUtil.arrayMedianOf3Index = function(array,comparator,low,high) {
+	var mid = (low + high) / 2 | 0;
+	var lowVal = array[low];
+	var midVal = array[mid];
+	var highVal = array[high];
+	if(comparator(lowVal,midVal) < 0) {
+		if(comparator(lowVal,highVal) >= 0) {
+			return low;
+		} else if(comparator(midVal,highVal) < 0) {
+			return mid;
+		}
+	} else if(comparator(lowVal,highVal) < 0) {
+		return low;
+	} else if(comparator(midVal,highVal) >= 0) {
+		return mid;
+	}
+	return high;
 };
 function $getIterator(o) { if( o instanceof Array ) return new haxe_iterators_ArrayIterator(o); else return o.iterator(); }
 function $bind(o,m) { if( m == null ) return null; if( m.__id__ == null ) m.__id__ = $global.$haxeUID++; var f; if( o.hx__closures__ == null ) o.hx__closures__ = {}; else f = o.hx__closures__[m.__id__]; if( f == null ) { f = m.bind(o); o.hx__closures__[m.__id__] = f; } return f; }

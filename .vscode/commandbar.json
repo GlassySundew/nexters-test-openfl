@@ -1,0 +1,25 @@
+{
+  "skipTerminateQuickPick": true,
+  "skipSwitchToOutput": false,
+  "skipErrorMessage": true,
+  "commands": [
+    {
+      "text": "build lime",
+      "color": "orange",
+      "commandType": "palette",
+      "command": "workbench.action.tasks.runTask|lime html5 debug",
+      "alignment": "right",
+      "skipTerminateQuickPick": false,
+      "priority": -2
+    },
+    {
+      "text": "run lime",
+      "color": "lime",
+      "command": "workbench.action.tasks.runTask|run lime",
+      "commandType": "palette",
+      "alignment": "right",
+      "skipTerminateQuickPick": false,
+      "priority": -11
+    }
+  ]
+}

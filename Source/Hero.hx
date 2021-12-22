@@ -53,6 +53,7 @@ class Hero extends Sprite {
 		var bitmapData = Assets.getBitmapData("assets/doomguy.png");
 		var bitmap = new Bitmap(bitmapData);
 		addChild(bitmap);
+		mouseEnabled = false;
 
 		this.cellX = cellX;
 		this.cellY = cellY;

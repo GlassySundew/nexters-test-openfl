@@ -1,10 +1,11 @@
 {
+  "version": "2.0.0",
   "tasks": [
     {
       "type": "lime",
       "group": {
-          "kind": "build",
-          "isDefault": true
+        "kind": "build",
+        "isDefault": true
       },
       "command": "build",
       "targetConfiguration": "HTML5 / Debug",
@@ -14,7 +15,12 @@
         "$haxe-error",
         "$haxe-trace"
       ],
-      "label": "lime: build html5 -debug"
+      "label": "lime html5 debug"
+    },
+    {
+      "type": "shell",
+      "label": "run lime",
+      "command": "lime run html5"
     }
   ]
 }

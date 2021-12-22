@@ -117,6 +117,7 @@ class Game {
 
 		if ( path != null ) {
 			var availableEnergy = hero.energy;
+			var wallsToDestroy = 0;
 			path.reverse();
 
 			for ( i => cell in path ) {
@@ -129,7 +130,7 @@ class Game {
 					{ x : path[i + 1].x, y : path[i + 1].y },
 					astar.edges,
 					stat.mazeSize) ) {
-
+					wallsToDestroy++;
 					drawCross(
 						(cell.x + Math.abs((path[i + 1].y - cell.y) / 2) + Math.max((path[i + 1].x - cell.x), 0)) * maze.cellSize,
 						(cell.y + Math.abs((path[i + 1].x - cell.x) / 2) + Math.max((path[i + 1].y - cell.y), 0)) * maze.cellSize,
@@ -149,7 +150,7 @@ class Game {
 			maze.displayTooltip(
 				(path[path.length - 1].x + 2) * maze.cellSize,
 				path[path.length - 1].y * maze.cellSize,
-				'cost: ${path.length - 1}');
+				'cost: ${path.length - 1} walls: $wallsToDestroy');
 		} else trace("was not able to find path");
 
 		heroPath.graphics.endFill();
