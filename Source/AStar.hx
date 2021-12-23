@@ -17,7 +17,6 @@ class Cell {
 	public var g : Int;
 	public var h : Int;
 	public var f : Int;
-	public var potentialF : Int;
 	public var parent : Cell;
 	public var wallsDestroyed : Int;
 	public var wallbreakingParent : Cell;
@@ -28,7 +27,6 @@ class Cell {
 		this.g = 0;
 		this.h = 0;
 		this.f = 0;
-		this.potentialF = 0;
 		this.wallsDestroyed = 0;
 	}
 }
@@ -107,7 +105,7 @@ class AStar {
 	private inline function getHeuristic( cell : Point )
 		return 10 * (Math.abs(cell.x - end.x) + Math.abs(cell.y - end.y));
 	/** 
-		линкует cell на adjCell
+		линкует cell на adjCell, стандартная стоимость перехода - 10
 	**/
 	private function updateCell( adjCell : Cell, cell : Cell ) {
 		adjCell.g = cell.g + 10;
@@ -147,7 +145,6 @@ class AStar {
 		return true;
 	}
 
-	// private inline function endWasReached() return closed.has(end);
 	/**
 		comparator for storing cell with lowest f higher
 	**/
@@ -155,15 +152,30 @@ class AStar {
 	/** 
 		should only be called once per AStar instance
 
+		обходим по A*, ломая все стены подряд, добавляя 1 к стоимости перехода, 
+		как только нашёлся выход, начинаем обходить граф сначала, 
+		игнорируя по порядку ломание каждой из стены по пути к выходу,
+		если есть путь оптимальнее, он найдётся и игнорируемая на этой итерации
+		стена будет занесена в Set ignoredBrokenCell для того, чтобы игнорировать её
+		дальше и до конца поиска.
 	**/
 	public function findPath() {
+		// если true, то с конца в начало будет произведена проверка на все 
+		// действующие в пути сломанные стены
 		var brokenWallsArePurged = true;
 		var ignoredBrokenCell : Cell = null;
-		this.ignoredBrokenCells = new Set();
-		var endWasReached = false;
+		ignoredBrokenCells = new Set();
+
+		// если true, то в этой итерации цикла будут собраны все стены в действующем пути до выхода 
+		// и проверены на более оптимальный путь путём игнорирования при обходе со start
+		var endWasReached = false; 
+
+		// используется для проверки нахождения лучшего пути, если при повторном обходе была 
+		// найдена в соседних ячейках adjCell ячейка из действующего самого оптимального пути 
+		// со стоимостью ниже, чем в данной клетке, то данный обход дропается и игнорируемая 
+		// стена не сохраняется, делается попытка проигнорировать следующую стену и обойти граф снова
 		var currentBestPath : Set<Cell> = new Set();
 
-		// "brokenWalls.length > 0" чтобы сломать стены, даже если персонаж замурован в 1 клетке
 		while( !(opened.isEmpty()) ) {
 
 			var cell = null;
@@ -220,8 +232,10 @@ class AStar {
 
 			for ( adjCell in adjCells ) {
 
+				// прверка в повторном обходе на оптимальность пути по сравнению с действующим путём,;
+				// если провалена - текущий обход дропается и начинается сначала, занеся в игнор 
+				// переменную следующую стену
 				if ( currentBestPath.has(adjCell) && cell.g > adjCell.g ) {
-					// trace("leaving better check");
 					ignoredBrokenCell = null;
 					endWasReached = true;
 					opened.data = [];
@@ -229,7 +243,7 @@ class AStar {
 
 					continue;
 				}
-				// "cell.g < adjCell.g - 10" - чтобы снова проходить тот же путь, но уже через сломанную стену
+				// "cell.g <= adjCell.g - 10" - чтобы снова проходить тот же путь, но уже через сломанную стену
 				if ( (!closed.has(adjCell) || cell.g <= adjCell.g - 10)
 					&& ensureThereWillBeNoLoops(adjCell, cell) ) {
 
