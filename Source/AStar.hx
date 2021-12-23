@@ -154,6 +154,7 @@ class AStar {
 	private inline function cellComparator( cell1 : Cell, cell2 : Cell ) : Int return cell2.f - cell1.f;
 	/** 
 		should only be called once per AStar instance
+
 	**/
 	public function findPath() {
 		var brokenWallsArePurged = true;
@@ -169,6 +170,7 @@ class AStar {
 
 			cell = opened.deleteTop(cellComparator);
 			closed.add(cell);
+			// trace("moving to " + cell.x, cell.y);
 
 			if ( cell == end ) {
 				endWasReached = true;
@@ -204,6 +206,7 @@ class AStar {
 			if ( endWasReached && brokenWalls.length > 0 ) {
 				var brokenWall = brokenWalls.pop();
 				ignoredBrokenCell = brokenWall;
+				// trace("popping " + brokenWall.x + " " + brokenWall.y + " wbp: " + brokenWall.wallbreakingParent.x + " " + brokenWall.wallbreakingParent.y);
 				opened.data = [];
 				opened.insert(cellComparator, start);
 
@@ -218,9 +221,12 @@ class AStar {
 			for ( adjCell in adjCells ) {
 
 				if ( currentBestPath.has(adjCell) && cell.g > adjCell.g ) {
+					// trace("leaving better check");
 					ignoredBrokenCell = null;
 					endWasReached = true;
 					opened.data = [];
+					opened.insert(cellComparator, start);
+
 					continue;
 				}
 				// "cell.g < adjCell.g - 10" - чтобы снова проходить тот же путь, но уже через сломанную стену
@@ -244,6 +250,7 @@ class AStar {
 						if ( adjCell.g == 0 || adjCell.g > cell.g + 10 ) {
 							// adjCell is located over the wall
 							// we wont break walls after our energy runs out
+
 							if ( cell.g < energy
 								&& cell.wallsDestroyed < sledgehammerUses
 								&&
@@ -255,6 +262,7 @@ class AStar {
 										|| (adjCell.wallbreakingParent != cell))
 									)
 								) ) {
+
 									// we mark cells that are behind walls to crush them later if needed
 									updateCell(adjCell, cell);
 									adjCell.g += 1;

@@ -189,6 +189,7 @@ AStar.prototype = {
 					ignoredBrokenCell = null;
 					endWasReached = true;
 					this.opened.data = [];
+					tools_BinaryHeapPQ.insert(this.opened,$bind(this,this.cellComparator),this.start);
 					continue;
 				}
 				if((!this.closed.has(adjCell) || cell.g <= adjCell.g - 10) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
@@ -214,7 +215,7 @@ AStar.prototype = {
 				}
 			}
 		}
-		haxe_Log.trace("leaving the loop",{ fileName : "Source/AStar.hx", lineNumber : 296, className : "AStar", methodName : "findPath"});
+		haxe_Log.trace("leaving the loop",{ fileName : "Source/AStar.hx", lineNumber : 298, className : "AStar", methodName : "findPath"});
 		return this.displayPath();
 	}
 	,__class__: AStar
@@ -1123,7 +1124,7 @@ ApplicationMain.main = function() {
 ApplicationMain.create = function(config) {
 	var app = new openfl_display_Application();
 	ManifestResources.init(config);
-	app.meta.h["build"] = "17";
+	app.meta.h["build"] = "18";
 	app.meta.h["company"] = "Company Name";
 	app.meta.h["file"] = "NextersTestOpenfl1";
 	app.meta.h["name"] = "NextersTestOpenfl1";
