@@ -33,7 +33,7 @@ class BinaryHeapPQ<T> {
 		return topVal;
 	}
 
-	public inline static function isEmpty<T>(
+	public static function isEmpty<T>(
 		pq : ArrayPQ<T> ) : Bool {
 		return pq.data.length == 0;
 	}
@@ -46,7 +46,7 @@ class BinaryHeapPQ<T> {
 		return pq.data[0];
 	}
 
-	public inline static function size<T>(
+	public static function size<T>(
 		pq : ArrayPQ<T> ) : Int {
 		return pq.data.length;
 	}
