@@ -14,7 +14,6 @@ var Cell = function(x,y) {
 	this.g = 0;
 	this.h = 0;
 	this.f = 0;
-	this.potentialF = 0;
 	this.wallsDestroyed = 0;
 };
 $hxClasses["Cell"] = Cell;
@@ -25,7 +24,6 @@ Cell.prototype = {
 	,g: null
 	,h: null
 	,f: null
-	,potentialF: null
 	,parent: null
 	,wallsDestroyed: null
 	,wallbreakingParent: null
@@ -116,7 +114,7 @@ AStar.prototype = {
 			resultPath.push(cell);
 		}
 		resultPath.push(this.start);
-		haxe_Log.trace(this.end.g,{ fileName : "Source/AStar.hx", lineNumber : 131, className : "AStar", methodName : "displayPath", customParams : ["============================================="]});
+		haxe_Log.trace(this.end.g,{ fileName : "Source/AStar.hx", lineNumber : 129, className : "AStar", methodName : "displayPath", customParams : ["============================================="]});
 		return resultPath;
 	}
 	,ensureThereWillBeNoLoops: function(adjCell,cell) {
@@ -128,6 +126,9 @@ AStar.prototype = {
 			parent = parent.parent;
 		}
 		return true;
+	}
+	,endWasEverReached: function() {
+		return this.end.parent != null;
 	}
 	,cellComparator: function(cell1,cell2) {
 		return cell2.f - cell1.f;
@@ -142,7 +143,6 @@ AStar.prototype = {
 			var cell = null;
 			cell = tools_BinaryHeapPQ.deleteTop(this.opened,$bind(this,this.cellComparator));
 			this.closed.add(cell);
-			haxe_Log.trace("moving to " + cell.x,{ fileName : "Source/AStar.hx", lineNumber : 180, className : "AStar", methodName : "findPath", customParams : [cell.y]});
 			if(cell == this.end) {
 				endWasReached = true;
 				brokenWallsArePurged = false;
@@ -170,7 +170,6 @@ AStar.prototype = {
 			if(endWasReached && this.brokenWalls.length > 0) {
 				var brokenWall = this.brokenWalls.pop();
 				ignoredBrokenCell = brokenWall;
-				haxe_Log.trace("popping " + brokenWall.x + " " + brokenWall.y + " wbp: " + brokenWall.wallbreakingParent.x + " " + brokenWall.wallbreakingParent.y,{ fileName : "Source/AStar.hx", lineNumber : 216, className : "AStar", methodName : "findPath"});
 				this.opened.data = [];
 				tools_BinaryHeapPQ.insert(this.opened,$bind(this,this.cellComparator),this.start);
 				endWasReached = false;
@@ -185,7 +184,6 @@ AStar.prototype = {
 				var adjCell = adjCells[_g];
 				++_g;
 				if(currentBestPath.has(adjCell) && cell.g > adjCell.g) {
-					haxe_Log.trace("leaving better check",{ fileName : "Source/AStar.hx", lineNumber : 231, className : "AStar", methodName : "findPath"});
 					ignoredBrokenCell = null;
 					endWasReached = true;
 					this.opened.data = [];
@@ -203,7 +201,7 @@ AStar.prototype = {
 							tools_BinaryHeapPQ.insert(this.opened,$bind(this,this.cellComparator),adjCell);
 						}
 					} else if(adjCell.g == 0 || adjCell.g > cell.g + 10) {
-						if(cell.g < this.energy && cell.wallsDestroyed < this.sledgehammerUses && ((ignoredBrokenCell == null || adjCell != ignoredBrokenCell && cell != ignoredBrokenCell.wallbreakingParent) && (!this.ignoredBrokenCells.has(adjCell) || adjCell.wallbreakingParent != cell))) {
+						if(cell.g < this.energy && (cell.wallsDestroyed < this.sledgehammerUses || this.endWasEverReached()) && ((ignoredBrokenCell == null || adjCell != ignoredBrokenCell && cell != ignoredBrokenCell.wallbreakingParent) && (!this.ignoredBrokenCells.has(adjCell) || adjCell.wallbreakingParent != cell))) {
 							this.updateCell(adjCell,cell);
 							adjCell.g += 1;
 							adjCell.f += 1;
@@ -215,7 +213,7 @@ AStar.prototype = {
 				}
 			}
 		}
-		haxe_Log.trace("leaving the loop",{ fileName : "Source/AStar.hx", lineNumber : 298, className : "AStar", methodName : "findPath"});
+		haxe_Log.trace("leaving the loop",{ fileName : "Source/AStar.hx", lineNumber : 295, className : "AStar", methodName : "findPath"});
 		return this.displayPath();
 	}
 	,__class__: AStar
@@ -1124,7 +1122,7 @@ ApplicationMain.main = function() {
 ApplicationMain.create = function(config) {
 	var app = new openfl_display_Application();
 	ManifestResources.init(config);
-	app.meta.h["build"] = "18";
+	app.meta.h["build"] = "20";
 	app.meta.h["company"] = "Company Name";
 	app.meta.h["file"] = "NextersTestOpenfl1";
 	app.meta.h["name"] = "NextersTestOpenfl1";
@@ -44490,7 +44488,7 @@ var lime_utils_AssetCache = function() {
 	this.audio = new haxe_ds_StringMap();
 	this.font = new haxe_ds_StringMap();
 	this.image = new haxe_ds_StringMap();
-	this.version = 278805;
+	this.version = 349482;
 };
 $hxClasses["lime.utils.AssetCache"] = lime_utils_AssetCache;
 lime_utils_AssetCache.__name__ = "lime.utils.AssetCache";

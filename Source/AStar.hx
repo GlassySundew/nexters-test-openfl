@@ -145,6 +145,8 @@ class AStar {
 		return true;
 	}
 
+	private function endWasEverReached() : Bool
+		return end.parent != null;
 	/**
 		comparator for storing cell with lowest f higher
 	**/
@@ -160,19 +162,19 @@ class AStar {
 		дальше и до конца поиска.
 	**/
 	public function findPath() {
-		// если true, то с конца в начало будет произведена проверка на все 
+		// если true, то с конца в начало будет произведена проверка на все
 		// действующие в пути сломанные стены
 		var brokenWallsArePurged = true;
 		var ignoredBrokenCell : Cell = null;
 		ignoredBrokenCells = new Set();
 
-		// если true, то в этой итерации цикла будут собраны все стены в действующем пути до выхода 
+		// если true, то в этой итерации цикла будут собраны все стены в действующем пути до выхода
 		// и проверены на более оптимальный путь путём игнорирования при обходе со start
-		var endWasReached = false; 
+		var endWasReached = false;
 
-		// используется для проверки нахождения лучшего пути, если при повторном обходе была 
-		// найдена в соседних ячейках adjCell ячейка из действующего самого оптимального пути 
-		// со стоимостью ниже, чем в данной клетке, то данный обход дропается и игнорируемая 
+		// используется для проверки нахождения лучшего пути, если при повторном обходе была
+		// найдена в соседних ячейках adjCell ячейка из действующего самого оптимального пути
+		// со стоимостью ниже, чем в данной клетке, то данный обход дропается и игнорируемая
 		// стена не сохраняется, делается попытка проигнорировать следующую стену и обойти граф снова
 		var currentBestPath : Set<Cell> = new Set();
 
@@ -233,7 +235,7 @@ class AStar {
 			for ( adjCell in adjCells ) {
 
 				// прверка в повторном обходе на оптимальность пути по сравнению с действующим путём,;
-				// если провалена - текущий обход дропается и начинается сначала, занеся в игнор 
+				// если провалена - текущий обход дропается и начинается сначала, занеся в игнор
 				// переменную следующую стену
 				if ( currentBestPath.has(adjCell) && cell.g > adjCell.g ) {
 					ignoredBrokenCell = null;
@@ -266,9 +268,8 @@ class AStar {
 							// we wont break walls after our energy runs out
 
 							if ( cell.g < energy
-								&& cell.wallsDestroyed < sledgehammerUses
-								&&
-								((ignoredBrokenCell == null
+								&& (cell.wallsDestroyed < sledgehammerUses || endWasEverReached() )
+								&& ((ignoredBrokenCell == null
 									|| (adjCell != ignoredBrokenCell
 										&& cell != ignoredBrokenCell.wallbreakingParent))
 
