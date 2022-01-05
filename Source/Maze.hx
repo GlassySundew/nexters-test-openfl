@@ -1,3 +1,4 @@
+import mazePreset.Presets.Preset;
 import js.lib.Set;
 import tools.IntPair;
 import openfl.text.TextField;
@@ -148,6 +149,7 @@ class Maze extends Sprite {
 		if ( toolTip != null )
 			toolTip.visible = false;
 	}
+
 	/** 
 		if any cell present, will remove everything, if no cells present, will place 4 walls around
 	**/
@@ -231,6 +233,22 @@ class Maze extends Sprite {
 		redrawWalls();
 	}
 
+	public function applyPreset( preset : Preset ) {
+		untyped edges.length = 0;
+
+		for ( wall in preset.walls ) {
+			edges.push(
+				new IntPair(
+					IntPair.mapCell(wall.x1, wall.y1, size),
+					IntPair.mapCell(wall.x2, wall.y2, size)
+				)
+			);
+		}
+		drawAll();
+
+		Game.inst.hero.setCellPosition(preset.heroCoord.x, preset.heroCoord.y);
+	}
+
 	private function redrawWalls() {
 		kruskal.drawWalls(wallColor);
 
@@ -238,10 +256,11 @@ class Maze extends Sprite {
 		graphics.lineStyle(4, wallColor);
 		drawBorderSquare(0, 0, size * cellSize, size * cellSize);
 	}
+
 	/**
 		must lineStyle before doing this, used for making border tiles
 	**/
-	function drawBorderSquare( x : Int, y : Int, width : Int, height : Int ) {
+	private function drawBorderSquare( x : Int, y : Int, width : Int, height : Int ) {
 		graphics.moveTo(x, y);
 		graphics.lineTo(x + width, y);
 		graphics.lineTo(x + width, y + height);

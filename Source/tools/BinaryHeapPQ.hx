@@ -54,7 +54,7 @@ class BinaryHeapPQ<T> {
 	private static function promote<T>(
 		pq : ArrayPQ<T>, comparator : T -> T -> Int,
 		index : Int ) : Void {
-		while( index > 1 &&
+		while( index > 0 &&
 			(comparator(pq.data[Std.int(index / 2)], pq.data[index]) < 0) ) {
 			SortUtil.arraySwapIndices(pq.data, Std.int(index / 2), index);
 			index = Std.int(index / 2);

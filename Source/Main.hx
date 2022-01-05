@@ -1,5 +1,7 @@
 package;
 
+import tools.BinaryHeapPQ;
+import mazePreset.Presets;
 import haxe.ui.events.MouseEvent;
 import openfl.Lib;
 import haxe.ui.HaxeUIApp;
@@ -7,6 +9,8 @@ import haxe.ui.Toolkit;
 import haxe.ui.containers.VBox;
 import openfl.display.Sprite;
 import openfl.text.TextField;
+
+using tools.BinaryHeapPQ;
 
 class Main extends Sprite {
 	public static var inst : Main;
@@ -53,6 +57,10 @@ private class UiManager extends VBox {
 	public function initConfig() {
 		mazeSpriteContainer = new SpriteContainer();
 		mazeBoxContainer.addChild(mazeSpriteContainer);
+
+		isolationTestPresetButton.onClick = ( e ) -> {
+			Game.inst.maze.applyPreset(Presets.isolationPreset);
+		};
 	}
 
 	public function getGameConfig() : GameState {

@@ -8,6 +8,12 @@ function $extend(from, fields) {
 	if( fields.toString !== Object.prototype.toString ) proto.toString = fields.toString;
 	return proto;
 }
+var RunMode = $hxEnums["RunMode"] = { __ename__:"RunMode",__constructs__:null
+	,FirstRun: {_hx_name:"FirstRun",_hx_index:0,__enum__:"RunMode",toString:$estr}
+	,WallsMinimize: {_hx_name:"WallsMinimize",_hx_index:1,__enum__:"RunMode",toString:$estr}
+	,CostOptimize: {_hx_name:"CostOptimize",_hx_index:2,__enum__:"RunMode",toString:$estr}
+};
+RunMode.__constructs__ = [RunMode.FirstRun,RunMode.WallsMinimize,RunMode.CostOptimize];
 var Cell = function(x,y) {
 	this.x = x;
 	this.y = y;
@@ -27,6 +33,7 @@ Cell.prototype = {
 	,parent: null
 	,wallsDestroyed: null
 	,wallbreakingParent: null
+	,lastPathParent: null
 	,__class__: Cell
 };
 var AStar = function(start,end,size,energy,sledgehammerUses,teleportCost,teleportRadius,edges,closed,brokenWalls) {
@@ -114,7 +121,7 @@ AStar.prototype = {
 			resultPath.push(cell);
 		}
 		resultPath.push(this.start);
-		haxe_Log.trace(this.end.g,{ fileName : "Source/AStar.hx", lineNumber : 129, className : "AStar", methodName : "displayPath", customParams : ["============================================="]});
+		haxe_Log.trace("=============================================",{ fileName : "Source/AStar.hx", lineNumber : 143, className : "AStar", methodName : "displayPath"});
 		return resultPath;
 	}
 	,ensureThereWillBeNoLoops: function(adjCell,cell) {
@@ -134,46 +141,65 @@ AStar.prototype = {
 		return cell2.f - cell1.f;
 	}
 	,findPath: function() {
-		var brokenWallsArePurged = true;
+		var startIgnoringWallsFlag = false;
+		var refreshBrokenWallsFlag = false;
 		var ignoredBrokenCell = null;
 		this.ignoredBrokenCells = new Set();
-		var endWasReached = false;
 		var currentBestPath = new Set();
+		var runMode = RunMode.FirstRun;
 		while(!tools_BinaryHeapPQ.isEmpty(this.opened)) {
 			var cell = null;
 			cell = tools_BinaryHeapPQ.deleteTop(this.opened,$bind(this,this.cellComparator));
 			this.closed.add(cell);
-			if(cell == this.end) {
-				endWasReached = true;
-				brokenWallsArePurged = false;
-				if(ignoredBrokenCell != null) {
-					this.ignoredBrokenCells.add(ignoredBrokenCell);
-				}
-				ignoredBrokenCell = null;
+			if(this.end.parent != null) {
+				runMode = this.end.wallsDestroyed > this.sledgehammerUses ? RunMode.WallsMinimize : RunMode.CostOptimize;
 			}
-			if(!brokenWallsArePurged) {
-				brokenWallsArePurged = true;
+			haxe_Log.trace("moving to " + cell.x,{ fileName : "Source/AStar.hx", lineNumber : 213, className : "AStar", methodName : "findPath", customParams : [cell.y,"wb: " + cell.wallsDestroyed,cell.parent != null ? "p " + cell.parent.x + " " + cell.parent.y : "","walls destroyed in the last path: " + this.end.wallsDestroyed]});
+			if(cell == this.end) {
+				startIgnoringWallsFlag = true;
+				if(this.end.wallsDestroyed <= this.sledgehammerUses || this.brokenWalls.length == 0) {
+					refreshBrokenWallsFlag = true;
+				}
+				if(this.end.wallsDestroyed > this.sledgehammerUses) {
+					this.closed = new Set();
+				}
+				if(ignoredBrokenCell != null) {
+					haxe_Log.trace("adding cell to permanent ignore list " + ignoredBrokenCell.x,{ fileName : "Source/AStar.hx", lineNumber : 249, className : "AStar", methodName : "findPath", customParams : [ignoredBrokenCell.y," wbp: " + ignoredBrokenCell.wallbreakingParent.x,ignoredBrokenCell.wallbreakingParent.y,runMode]});
+					this.ignoredBrokenCells.add(ignoredBrokenCell);
+					ignoredBrokenCell = null;
+				}
+			}
+			if(refreshBrokenWallsFlag) {
+				haxe_Log.trace("refreshing walls",{ fileName : "Source/AStar.hx", lineNumber : 257, className : "AStar", methodName : "findPath"});
+				refreshBrokenWallsFlag = false;
 				this.brokenWalls = [];
 				var pathCell = this.end;
 				currentBestPath = new Set();
 				while(pathCell != null) {
 					currentBestPath.add(pathCell);
+					pathCell.lastPathParent = pathCell.parent;
 					if(pathCell.parent != null && tools_IntPair.findWallBetweenTwoCells({ x : pathCell.x, y : pathCell.y},{ x : pathCell.parent.x, y : pathCell.parent.y},this.edges,this.size) != null) {
 						this.brokenWalls.push(pathCell);
 					}
 					pathCell = pathCell.parent;
 				}
 			}
-			if(endWasReached && this.brokenWalls.length == 0) {
-				return this.displayPath();
-			}
-			if(endWasReached && this.brokenWalls.length > 0) {
-				var brokenWall = this.brokenWalls.pop();
-				ignoredBrokenCell = brokenWall;
-				this.opened.data = [];
-				tools_BinaryHeapPQ.insert(this.opened,$bind(this,this.cellComparator),this.start);
-				endWasReached = false;
+			if(startIgnoringWallsFlag && this.brokenWalls.length > 0) {
+				while(ignoredBrokenCell == null) {
+					var brokenWall = this.brokenWalls.pop();
+					if(!this.ignoredBrokenCells.has(brokenWall)) {
+						ignoredBrokenCell = brokenWall;
+						haxe_Log.trace("popping " + brokenWall.x + " " + brokenWall.y + " wbp: " + brokenWall.wallbreakingParent.x + " " + brokenWall.wallbreakingParent.y,{ fileName : "Source/AStar.hx", lineNumber : 283, className : "AStar", methodName : "findPath"});
+					}
+				}
+				haxe_Log.trace(this.brokenWalls.length,{ fileName : "Source/AStar.hx", lineNumber : 287, className : "AStar", methodName : "findPath"});
+				this.opened.data = [this.start];
+				startIgnoringWallsFlag = false;
 				continue;
+			}
+			if(startIgnoringWallsFlag && this.brokenWalls.length == 0 && this.end.wallsDestroyed <= this.sledgehammerUses) {
+				haxe_Log.trace("exiting with no walls in cache",{ fileName : "Source/AStar.hx", lineNumber : 302, className : "AStar", methodName : "findPath"});
+				return this.displayPath();
 			}
 			if(cell == null) {
 				return null;
@@ -183,15 +209,16 @@ AStar.prototype = {
 			while(_g < adjCells.length) {
 				var adjCell = adjCells[_g];
 				++_g;
-				if(currentBestPath.has(adjCell) && cell.g > adjCell.g) {
+				var isWallPresent = tools_IntPair.findWallBetweenTwoCells({ x : adjCell.x, y : adjCell.y},{ x : cell.x, y : cell.y},this.edges,this.size) != null;
+				if(ignoredBrokenCell != null && (runMode == RunMode.WallsMinimize && currentBestPath.has(adjCell) && adjCell.wallsDestroyed < cell.wallsDestroyed && cell.g < adjCell.g - 10 || runMode == RunMode.CostOptimize && (currentBestPath.has(adjCell) && cell.g > adjCell.g + 11))) {
 					ignoredBrokenCell = null;
-					endWasReached = true;
-					this.opened.data = [];
-					tools_BinaryHeapPQ.insert(this.opened,$bind(this,this.cellComparator),this.start);
+					startIgnoringWallsFlag = true;
+					this.opened.data = [this.start];
+					haxe_Log.trace("dropping cell looking at " + adjCell.x,{ fileName : "Source/AStar.hx", lineNumber : 359, className : "AStar", methodName : "findPath", customParams : [adjCell.y,runMode]});
 					continue;
 				}
 				if((!this.closed.has(adjCell) || cell.g <= adjCell.g - 10) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
-					if(tools_IntPair.findWallBetweenTwoCells({ x : adjCell.x, y : adjCell.y},{ x : cell.x, y : cell.y},this.edges,this.size) == null) {
+					if(!isWallPresent) {
 						if(this.opened.data.indexOf(adjCell) != -1) {
 							if(cell.g <= adjCell.g - 10) {
 								this.updateCell(adjCell,cell);
@@ -200,8 +227,11 @@ AStar.prototype = {
 							this.updateCell(adjCell,cell);
 							tools_BinaryHeapPQ.insert(this.opened,$bind(this,this.cellComparator),adjCell);
 						}
-					} else if(adjCell.g == 0 || adjCell.g > cell.g + 10) {
-						if(cell.g < this.energy && (cell.wallsDestroyed < this.sledgehammerUses || this.endWasEverReached()) && ((ignoredBrokenCell == null || adjCell != ignoredBrokenCell && cell != ignoredBrokenCell.wallbreakingParent) && (!this.ignoredBrokenCells.has(adjCell) || adjCell.wallbreakingParent != cell))) {
+					} else if(adjCell.g == 0 || adjCell.g > cell.g + 10 || runMode == RunMode.WallsMinimize) {
+						if(cell.g < this.energy && ((ignoredBrokenCell == null || adjCell != ignoredBrokenCell && cell != ignoredBrokenCell.wallbreakingParent) && (!this.ignoredBrokenCells.has(adjCell) || adjCell.lastPathParent != cell))) {
+							if(adjCell == this.end) {
+								this.opened.data = [];
+							}
 							this.updateCell(adjCell,cell);
 							adjCell.g += 1;
 							adjCell.f += 1;
@@ -213,7 +243,7 @@ AStar.prototype = {
 				}
 			}
 		}
-		haxe_Log.trace("leaving the loop",{ fileName : "Source/AStar.hx", lineNumber : 295, className : "AStar", methodName : "findPath"});
+		haxe_Log.trace("leaving the loop",{ fileName : "Source/AStar.hx", lineNumber : 404, className : "AStar", methodName : "findPath"});
 		return this.displayPath();
 	}
 	,__class__: AStar
@@ -1122,7 +1152,7 @@ ApplicationMain.main = function() {
 ApplicationMain.create = function(config) {
 	var app = new openfl_display_Application();
 	ManifestResources.init(config);
-	app.meta.h["build"] = "20";
+	app.meta.h["build"] = "21";
 	app.meta.h["company"] = "Company Name";
 	app.meta.h["file"] = "NextersTestOpenfl1";
 	app.meta.h["name"] = "NextersTestOpenfl1";
@@ -8637,6 +8667,19 @@ var _$Main_UiManager = function() {
 	c32.set_styleString("position: absolute;");
 	c0.addComponent(c32);
 	this.addComponent(c0);
+	var c33 = new haxe_ui_containers_VBox();
+	c33.set_styleNames("bordered");
+	c33.set_percentWidth(100);
+	var c34 = new haxe_ui_components_Label();
+	c34.set_text("Maze presets:");
+	c33.addComponent(c34);
+	var c35 = new haxe_ui_components_Button();
+	c35.set_id("isolationTestPresetButton");
+	c35.set_text("Isolation test case");
+	c35.set_verticalAlign("center");
+	c35.set_percentWidth(100);
+	c33.addComponent(c35);
+	this.addComponent(c33);
 	this.set_styleString("padding: 5px; spacing:10px;");
 	this.bindingRoot = true;
 	this.wConfig = c25;
@@ -8649,6 +8692,7 @@ var _$Main_UiManager = function() {
 	this.mazeClearButton = c12;
 	this.mazeBoxContainer = c32;
 	this.mConfig = c21;
+	this.isolationTestPresetButton = c35;
 	this.energyDisplayLabel = c6;
 	this.endTurnButton = c11;
 	this.eConfig = c23;
@@ -8664,6 +8708,9 @@ _$Main_UiManager.prototype = $extend(haxe_ui_containers_VBox.prototype,{
 	,initConfig: function() {
 		this.mazeSpriteContainer = new SpriteContainer();
 		this.mazeBoxContainer.addChild(this.mazeSpriteContainer);
+		this.isolationTestPresetButton.set_onClick(function(e) {
+			Game.get_inst().maze.applyPreset(mazePreset_Presets.isolationPreset);
+		});
 	}
 	,getGameConfig: function() {
 		var maxWith0 = function(text) {
@@ -8709,6 +8756,7 @@ _$Main_UiManager.prototype = $extend(haxe_ui_containers_VBox.prototype,{
 	,mazeClearButton: null
 	,mazeBoxContainer: null
 	,mConfig: null
+	,isolationTestPresetButton: null
 	,energyDisplayLabel: null
 	,endTurnButton: null
 	,eConfig: null
@@ -8731,7 +8779,7 @@ ManifestResources.init = function(config) {
 		ManifestResources.rootPath = "./";
 	}
 	var bundle;
-	var data = "{\"name\":null,\"assets\":\"aoy4:pathy17:assets%2Fmain.xmly4:sizei2500y4:typey4:TEXTy2:idR1y7:preloadtgoR0y20:assets%2Fdoomguy.pngR2i5625R3y5:IMAGER5R7R6tgh\",\"rootPath\":null,\"version\":2,\"libraryArgs\":[],\"libraryType\":null}";
+	var data = "{\"name\":null,\"assets\":\"aoy4:pathy17:assets%2Fmain.xmly4:sizei2707y4:typey4:TEXTy2:idR1y7:preloadtgoR0y20:assets%2Fdoomguy.pngR2i5625R3y5:IMAGER5R7R6tgh\",\"rootPath\":null,\"version\":2,\"libraryArgs\":[],\"libraryType\":null}";
 	var manifest = lime_utils_AssetManifest.parse(data,ManifestResources.rootPath);
 	var library = lime_utils_AssetLibrary.fromManifest(manifest);
 	lime_utils_Assets.registerLibrary("default",library);
@@ -8907,7 +8955,7 @@ Maze.prototype = $extend(openfl_display_Sprite.prototype,{
 	}
 	,addRandomWalls: function(amount) {
 		var walls = [];
-		haxe_Log.trace(amount,{ fileName : "Source/Maze.hx", lineNumber : 201, className : "Maze", methodName : "addRandomWalls"});
+		haxe_Log.trace(amount,{ fileName : "Source/Maze.hx", lineNumber : 203, className : "Maze", methodName : "addRandomWalls"});
 		var edgesSet = new Set(this.get_edges());
 		var coordinateOffset = [{ x : 1, y : 0},{ x : 0, y : 1}];
 		var _g = 0;
@@ -8937,6 +8985,18 @@ Maze.prototype = $extend(openfl_display_Sprite.prototype,{
 			HxOverrides.remove(walls,wall);
 		}
 		this.redrawWalls();
+	}
+	,applyPreset: function(preset) {
+		this.get_edges().length = 0;
+		var _g = 0;
+		var _g1 = preset.walls;
+		while(_g < _g1.length) {
+			var wall = _g1[_g];
+			++_g;
+			this.get_edges().push(new tools_IntPair(wall.x1 + wall.y1 * this.size,wall.x2 + wall.y2 * this.size));
+		}
+		this.drawAll();
+		Game.get_inst().hero.setCellPosition(preset.heroCoord.x,preset.heroCoord.y);
 	}
 	,redrawWalls: function() {
 		this.kruskal.drawWalls(this.wallColor);
@@ -44488,7 +44548,7 @@ var lime_utils_AssetCache = function() {
 	this.audio = new haxe_ds_StringMap();
 	this.font = new haxe_ds_StringMap();
 	this.image = new haxe_ds_StringMap();
-	this.version = 349482;
+	this.version = 277803;
 };
 $hxClasses["lime.utils.AssetCache"] = lime_utils_AssetCache;
 lime_utils_AssetCache.__name__ = "lime.utils.AssetCache";
@@ -46791,6 +46851,9 @@ lime_utils_UInt8ClampedArray._clamp = function(_in) {
 		return _out;
 	}
 };
+var mazePreset_Presets = function() { };
+$hxClasses["mazePreset.Presets"] = mazePreset_Presets;
+mazePreset_Presets.__name__ = "mazePreset.Presets";
 var openfl_Lib = function() { };
 $hxClasses["openfl.Lib"] = openfl_Lib;
 openfl_Lib.__name__ = "openfl.Lib";
@@ -95707,7 +95770,7 @@ tools_BinaryHeapPQ.size = function(pq) {
 	return pq.data.length;
 };
 tools_BinaryHeapPQ.promote = function(pq,comparator,index) {
-	while(index > 1 && comparator(pq.data[index / 2 | 0],pq.data[index]) < 0) {
+	while(index > 0 && comparator(pq.data[index / 2 | 0],pq.data[index]) < 0) {
 		tools_SortUtil.arraySwapIndices(pq.data,index / 2 | 0,index);
 		index = index / 2 | 0;
 	}
@@ -97557,6 +97620,7 @@ lime_utils_UInt16Array.BYTES_PER_ELEMENT = 2;
 lime_utils_UInt32Array.BYTES_PER_ELEMENT = 4;
 lime_utils_UInt8Array.BYTES_PER_ELEMENT = 1;
 lime_utils_UInt8ClampedArray.BYTES_PER_ELEMENT = 1;
+mazePreset_Presets.isolationPreset = { walls : [{ x1 : 2, y1 : 1, x2 : 2, y2 : 0},{ x1 : 3, y1 : 1, x2 : 3, y2 : 0},{ x1 : 4, y1 : 1, x2 : 4, y2 : 0},{ x1 : 2, y1 : 1, x2 : 1, y2 : 1},{ x1 : 2, y1 : 2, x2 : 1, y2 : 2},{ x1 : 2, y1 : 3, x2 : 1, y2 : 3},{ x1 : 2, y1 : 4, x2 : 2, y2 : 3},{ x1 : 3, y1 : 4, x2 : 3, y2 : 3},{ x1 : 4, y1 : 4, x2 : 4, y2 : 3},{ x1 : 4, y1 : 4, x2 : 4, y2 : 3},{ x1 : 5, y1 : 1, x2 : 4, y2 : 1},{ x1 : 5, y1 : 2, x2 : 4, y2 : 2},{ x1 : 5, y1 : 3, x2 : 4, y2 : 3},{ x1 : 1, y1 : 5, x2 : 1, y2 : 4},{ x1 : 2, y1 : 5, x2 : 2, y2 : 4},{ x1 : 3, y1 : 5, x2 : 3, y2 : 4},{ x1 : 4, y1 : 5, x2 : 4, y2 : 4},{ x1 : 5, y1 : 5, x2 : 5, y2 : 4},{ x1 : 1, y1 : 5, x2 : 1, y2 : 6},{ x1 : 2, y1 : 5, x2 : 2, y2 : 6},{ x1 : 3, y1 : 5, x2 : 3, y2 : 6},{ x1 : 4, y1 : 5, x2 : 4, y2 : 6},{ x1 : 5, y1 : 5, x2 : 5, y2 : 6},{ x1 : 1, y1 : 7, x2 : 1, y2 : 6},{ x1 : 2, y1 : 7, x2 : 2, y2 : 6},{ x1 : 3, y1 : 7, x2 : 3, y2 : 6},{ x1 : 4, y1 : 7, x2 : 4, y2 : 6},{ x1 : 5, y1 : 7, x2 : 5, y2 : 6},{ x1 : 1, y1 : 7, x2 : 1, y2 : 8},{ x1 : 2, y1 : 7, x2 : 2, y2 : 8},{ x1 : 3, y1 : 7, x2 : 3, y2 : 8},{ x1 : 4, y1 : 7, x2 : 4, y2 : 8},{ x1 : 5, y1 : 7, x2 : 5, y2 : 8},{ x1 : 2, y1 : 9, x2 : 2, y2 : 8},{ x1 : 3, y1 : 9, x2 : 3, y2 : 8},{ x1 : 4, y1 : 9, x2 : 4, y2 : 8},{ x1 : 2, y1 : 9, x2 : 1, y2 : 9},{ x1 : 2, y1 : 10, x2 : 1, y2 : 10},{ x1 : 2, y1 : 11, x2 : 1, y2 : 11},{ x1 : 2, y1 : 12, x2 : 2, y2 : 11},{ x1 : 3, y1 : 12, x2 : 3, y2 : 11},{ x1 : 4, y1 : 12, x2 : 4, y2 : 11},{ x1 : 4, y1 : 12, x2 : 4, y2 : 11},{ x1 : 5, y1 : 9, x2 : 4, y2 : 9},{ x1 : 5, y1 : 10, x2 : 4, y2 : 10},{ x1 : 5, y1 : 11, x2 : 4, y2 : 11}], heroCoord : { x : 3, y : 2}};
 openfl_Lib.__lastTimerID = 0;
 openfl_Lib.__sentWarnings = new haxe_ds_StringMap();
 openfl_Lib.__timers = new haxe_ds_IntMap();
