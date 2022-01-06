@@ -40,6 +40,23 @@ class Cell {
 	}
 }
 
+/**
+	ключ - клетка, всегда ближайшая к выходу, занчение(сэт) это все клетки между которыми и у 
+	клетки - ключа есть игнорируемая стена
+**/
+abstract IgnoredWallsMap( Map<Cell, Set<Cell>> ) {
+
+	public function new( s ) this = s;
+
+	@:arrayAccess
+	function get( cell : Cell ) {
+		if ( this.get(cell) == null )
+			this[cell] = new Set();
+
+		return this[cell];
+	}
+}
+
 class AStar {
 
 	/**list of available cells to enter**/
@@ -53,8 +70,9 @@ class AStar {
 	/** mark all cells that are cut off with walls from the one we are in **/
 	private var brokenWalls : Array<Cell>;
 	private var cells : Array<Array<Cell>>;
-	private var ignoredBrokenCells : Set<Cell>;
 
+	// private var ignoredBrokenCells : Set<Cell>;
+	private var ignoredBrokenCells : IgnoredWallsMap;
 	private var start : Cell;
 	private var end : Cell;
 	private var size : Int;
@@ -90,7 +108,9 @@ class AStar {
 		this.edges = new Set(edges);
 		this.brokenWalls = brokenWalls == null ? [] : brokenWalls;
 		this.closed = new Set(closed);
-		this.ignoredBrokenCells = new Set();
+
+		// this.ignoredBrokenCells = new Set();
+		this.ignoredBrokenCells = new IgnoredWallsMap(new Map());
 
 		cells = [for ( y in 0...size ) [for ( x in 0...size ) new Cell(x, y)]];
 
@@ -179,6 +199,7 @@ class AStar {
 		дальше и до конца поиска.
 	**/
 	public function findPath() {
+
 		// если true, то в этой итерации цикла будут собраны все стены в действующем пути до выхода
 		// и проверены на более оптимальный путь путём игнорирования при обходе со start
 		var startIgnoringWallsFlag = false;
@@ -187,56 +208,34 @@ class AStar {
 		var refreshBrokenWallsFlag = false;
 
 		var ignoredBrokenCell : Cell = null;
-		ignoredBrokenCells = new Set();
 
 		// используется для проверки нахождения лучшего пути, если при повторном обходе была
 		// найдена в соседних ячейках adjCell ячейка из действующего самого оптимального пути
 		// со стоимостью ниже, чем в данной клетке, то данный обход дропается и игнорируемая
 		// стена не сохраняется, делается попытка проигнорировать следующую стену и обойти граф снова
-		var currentBestPath : Set<Cell> = new Set();
+		var currentBestPath : Map<Cell, { oldG : Int, oldWallsBroken : Int }> = new Map();
 		var runMode : RunMode = FirstRun;
 
-		while( !(opened.isEmpty()) ) {
+		while( !opened.isEmpty() ) {
 
 			var cell = null;
 
 			cell = opened.deleteTop(cellComparator);
 			closed.add(cell);
 
-			if ( end.parent != null )
-				runMode = {
-					if ( end.wallsDestroyed > sledgehammerUses )
-						WallsMinimize;
-					else
-						CostOptimize;
-				}
 			trace("moving to " + cell.x, cell.y, "wb: " + cell.wallsDestroyed,
 				cell.parent != null ? "p " + cell.parent.x + " " + cell.parent.y : "",
 				"walls destroyed in the last path: " + end.wallsDestroyed);
 
-			// var preEndWallOptimizationFlag = false;
-			// if ( cell.wallsDestroyed > sledgehammerUses && cell.g < energy ) {
-			// 	preEndWallOptimizationFlag = true;
-			// 	startIgnoringWallsFlag = true;
-			// 	closed = new Set();
-
-			// 	if ( brokenWalls.length == 0 ) {
-			// 		refreshBrokenWallsFlag = true;
-			// 	}
-			// 	trace("raising ignore walls flag with " + brokenWalls.length + " walls in cache");
-
-			// 	if ( ignoredBrokenCell != null ) {
-			// 		ignoredBrokenCells.add(ignoredBrokenCell);
-
-			// 		trace("adding in ignore list " + ignoredBrokenCell.x, ignoredBrokenCell.y
-			// 			, " wbp: " +
-			// 			ignoredBrokenCell.wallbreakingParent.x, ignoredBrokenCell.wallbreakingParent.y);
-
-			// 		ignoredBrokenCell = null;
-			// 	}
-			// }
-
 			if ( cell == end ) {
+				if ( end.parent != null )
+					runMode = {
+						if ( end.wallsDestroyed > sledgehammerUses )
+							WallsMinimize;
+						else
+							CostOptimize;
+					}
+
 				startIgnoringWallsFlag = true;
 
 				if ( end.wallsDestroyed <= sledgehammerUses || brokenWalls.length == 0 )
@@ -248,7 +247,8 @@ class AStar {
 				if ( ignoredBrokenCell != null ) {
 					trace("adding cell to permanent ignore list " + ignoredBrokenCell.x, ignoredBrokenCell.y,
 						" wbp: " + ignoredBrokenCell.wallbreakingParent.x, ignoredBrokenCell.wallbreakingParent.y, runMode);
-					ignoredBrokenCells.add(ignoredBrokenCell);
+					ignoredBrokenCells[ignoredBrokenCell].add(ignoredBrokenCell.wallbreakingParent);
+					// ignoredBrokenCells.add(ignoredBrokenCell);
 					ignoredBrokenCell = null;
 				}
 			}
@@ -259,9 +259,9 @@ class AStar {
 				refreshBrokenWallsFlag = false;
 				brokenWalls = [];
 				var pathCell = end;
-				currentBestPath = new Set();
+				currentBestPath = new Map();
 				while( pathCell != null ) {
-					currentBestPath.add(pathCell);
+					currentBestPath[pathCell] = { oldG : pathCell.g, oldWallsBroken : pathCell.wallsDestroyed };
 					pathCell.lastPathParent = pathCell.parent;
 					if ( pathCell.parent != null && IntPair.wallExistsBetweenCells(
 						{ x : pathCell.x, y : pathCell.y },
@@ -284,15 +284,33 @@ class AStar {
 			}
 
 			if ( startIgnoringWallsFlag && brokenWalls.length > 0 ) {
-				
-				var brokenWall = brokenWalls.pop();
-				ignoredBrokenCell = brokenWall;
-				trace("popping " + brokenWall.x + " " + brokenWall.y
-					+ " wbp: " + brokenWall.wallbreakingParent.x + " " + brokenWall.wallbreakingParent.y);
+				ignoredBrokenCell = null;
+
+				while( ignoredBrokenCell == null && brokenWalls.length > 0 ) {
+					var brokenWall = brokenWalls.pop();
+
+					if ( !ignoredBrokenCells[brokenWall].has(brokenWall.wallbreakingParent) ) {
+						// if ( !ignoredBrokenCells.has(brokenWall) || brokenWall.lastPathParent != brokenWall.wallbreakingParent ) {
+						ignoredBrokenCell = brokenWall;
+						trace("popping " + brokenWall.x + " " + brokenWall.y
+							+ " wbp: " + ((brokenWall.wallbreakingParent != null) ? brokenWall.wallbreakingParent.x + " " + brokenWall.wallbreakingParent.y : ""));
+					}
+				}
+
+				// if ( brokenWalls.length == 0 )
+				// if ( end.wallsDestroyed <= sledgehammerUses )
+				// return displayPath();
+				// else
+				// refreshBrokenWallsFlag = true;
+
+				startIgnoringWallsFlag = false;
+
+				#if debug
+				trace("broken wall in cache left after filtering : " + brokenWalls.length);
+				#end
 
 				opened.data = [start];
 
-				startIgnoringWallsFlag = false;
 				continue;
 			}
 
@@ -311,36 +329,18 @@ class AStar {
 				// прверка в повторном обходе на оптимальность пути по сравнению с действующим путём,;
 				// если провалена - текущий обход дропается и начинается сначала, занеся в игнор
 				// переменную следующую стену
-
-				// if ( currentBestPath.has(adjCell)
-				// 	&& cell.g > adjCell.g + 11
-				// 	&& cell.wallsDestroyed > adjCell.wallsDestroyed ) {
-
-				// if ( adjCell == end && end.g != 0 && cell.g > adjCell.g + 11 ) {
-
-				// if ( adjCell == end && end.wallsDestroyed == cell.wallsDestroyed ) {
-				// 	startIgnoringWallsFlag = true;
-				// 	refreshBrokenWallsFlag = true;
-				// 	// closed = new Set();
-
-				// 	if ( ignoredBrokenCell != null ) {
-				// 		ignoredBrokenCells.add(ignoredBrokenCell);
-				// 		ignoredBrokenCell = null;
-				// 	}
-				// }
-
 				if ( //
 					ignoredBrokenCell != null
 					&& ( //
 						(
 							runMode == WallsMinimize
-							&& currentBestPath.has(adjCell)
-							&& adjCell.wallsDestroyed < cell.wallsDestroyed
-							&& cell.g < adjCell.g - 10
+							&& currentBestPath[adjCell] != null
+							&& cell.wallsDestroyed > currentBestPath[adjCell].oldWallsBroken
+							&& cell.g <= currentBestPath[adjCell].oldG - 10
 						)
 						|| (
 							runMode == CostOptimize
-							&& (currentBestPath.has(adjCell) && cell.g > adjCell.g + 11)
+							&& (currentBestPath[adjCell] != null && cell.g > adjCell.g + 11)
 						)
 					) //
 				) {
@@ -349,7 +349,9 @@ class AStar {
 					startIgnoringWallsFlag = true;
 					opened.data = [start];
 
-					trace("dropping cell looking at " + adjCell.x, adjCell.y, runMode);
+					// if ( runMode == WallsMinimize && brokenWalls.length == 0 ) refreshBrokenWallsFlag = true;
+
+					trace("dropping cell looking at " + adjCell.x, adjCell.y, "wd: " + adjCell.wallsDestroyed, runMode);
 
 					continue;
 				}
@@ -369,17 +371,17 @@ class AStar {
 						}
 					} else {
 						// adjCell is located over the wall
-						if ( adjCell.g == 0 || adjCell.g > cell.g + 10 || runMode == WallsMinimize ) {
+						if ( adjCell.g == 0 || adjCell.g > cell.g + 10 || (runMode == WallsMinimize) ) {
 
 							if ( cell.g < energy // && (cell.wallsDestroyed < sledgehammerUses)
 								&& ( //
-									(ignoredBrokenCell == null
-										|| (adjCell != ignoredBrokenCell && cell != ignoredBrokenCell.wallbreakingParent))
+									(
+										ignoredBrokenCell == null
+										|| (adjCell != ignoredBrokenCell && cell != ignoredBrokenCell.wallbreakingParent) //
+									)
+									&& (!ignoredBrokenCells[adjCell].has(cell)) // && (!ignoredBrokenCells.has(adjCell) || adjCell.lastPathParent != cell)
 
-									&& (!ignoredBrokenCells.has(adjCell) || adjCell.lastPathParent != cell)
 								) ) {
-
-									if ( adjCell == end ) opened.data = [];
 
 									updateCell(adjCell, cell);
 									adjCell.g += 1;

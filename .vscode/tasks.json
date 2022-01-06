@@ -15,7 +15,21 @@
         "$haxe-error",
         "$haxe-trace"
       ],
+      "dependsOn" : "kill lime",
       "label": "lime html5 debug"
+    },
+    {
+      "type" : "shell",
+      "label" : "kill lime",
+      "command" : "killall -9 lime",
+      "presentation": {
+        "echo": true,
+        "reveal": "never",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
     },
     {
       "type": "shell",

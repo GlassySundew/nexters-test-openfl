@@ -7,6 +7,7 @@ import openfl.Assets;
 using tools.ReverseArrayKeyValueIterator;
 
 class Hero extends Sprite {
+
 	/**
 		порядковый номер ячейки по x и y, в которой стоит герой
 	**/
@@ -93,11 +94,10 @@ class Hero extends Sprite {
 						}
 					}
 				}
-				// для компенсации обработки нулевой точки
 			})();
 
-			energy++;
-			
+			energy++; // для компенсации обработки нулевой точки
+
 			Game.inst.maze.drawAll();
 			Game.inst.removeHeroPath();
 			pathCache = null;
