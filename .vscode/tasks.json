@@ -15,7 +15,6 @@
         "$haxe-error",
         "$haxe-trace"
       ],
-      "dependsOn" : "kill lime",
       "label": "lime html5 debug"
     },
     {
