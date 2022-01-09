@@ -41,7 +41,7 @@ class BinaryHeapPQ<T> {
 		~1
 	**/
 	public static function top<T>(
-		pq : ArrayPQ<T>, comparator : T -> T -> Int ) : T {
+		pq : ArrayPQ<T>) : T {
 		// First index - the root node - is always the top
 		return pq.data[0];
 	}

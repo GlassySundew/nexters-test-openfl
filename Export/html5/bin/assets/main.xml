@@ -62,7 +62,8 @@
 	<vbox styleNames="bordered" percentWidth="100">
 		<label text="Maze presets:" />
 
-		<button text="Isolation test case" id="isolationTestPresetButton" verticalAlign="center" percentWidth="100" />
+		<button text="Isolation" id="isolationTestPresetButton" verticalAlign="center" percentWidth="100" />
+		<button text="Cost optimality" id="costOptimalityTestPresetButton" verticalAlign="center" percentWidth="100" />
 	</vbox>
 
 </vbox>

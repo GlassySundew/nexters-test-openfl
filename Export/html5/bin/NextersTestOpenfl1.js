@@ -150,7 +150,7 @@ AStar.prototype = {
 			resultPath.push(cell);
 		}
 		resultPath.push(this.start);
-		haxe_Log.trace("=============================================",{ fileName : "Source/AStar.hx", lineNumber : 183, className : "AStar", methodName : "displayPath"});
+		haxe_Log.trace("=============================================",{ fileName : "Source/AStar.hx", lineNumber : 184, className : "AStar", methodName : "displayPath"});
 		return resultPath;
 	}
 	,ensureThereWillBeNoLoops: function(adjCell,cell) {
@@ -163,9 +163,6 @@ AStar.prototype = {
 		}
 		return true;
 	}
-	,endWasEverReached: function() {
-		return this.end.parent != null;
-	}
 	,cellComparator: function(cell1,cell2) {
 		return cell2.f - cell1.f;
 	}
@@ -173,14 +170,15 @@ AStar.prototype = {
 		var startIgnoringWallsFlag = false;
 		var refreshBrokenWallsFlag = false;
 		var currentBestPath = new haxe_ds_ObjectMap();
-		var runMode = RunMode.FirstRun;
 		this.ignoredBrokenCells = IgnoredWallsMap._new(new haxe_ds_ObjectMap());
+		var wasUnableToBreakWallSomewhere = false;
 		while(!tools_BinaryHeapPQ.isEmpty(this.opened)) {
 			var cell = null;
 			cell = tools_BinaryHeapPQ.deleteTop(this.opened,$bind(this,this.cellComparator));
 			this.closed.add(cell);
-			haxe_Log.trace("moving to " + cell.x,{ fileName : "Source/AStar.hx", lineNumber : 248, className : "AStar", methodName : "findPath", customParams : [cell.y,"wb: " + cell.wallsDestroyed,cell.parent != null ? "p " + cell.parent.x + " " + cell.parent.y : "","walls destroyed in the last path: " + this.end.wallsDestroyed]});
-			if(cell == this.end) {
+			haxe_Log.trace("moving to " + cell.x,{ fileName : "Source/AStar.hx", lineNumber : 241, className : "AStar", methodName : "findPath", customParams : [cell.y,"f: " + cell.f + " wb: " + cell.wallsDestroyed,cell.parent != null ? "p " + cell.parent.x + " " + cell.parent.y : ""," walls destroyed in the last path: " + this.end.wallsDestroyed + " ewr " + Std.string(this.end.parent) != null]});
+			if(this.end.parent != null && tools_BinaryHeapPQ.top(this.opened).f > this.end.f) {
+				haxe_Log.trace(this.end.f,{ fileName : "Source/AStar.hx", lineNumber : 251, className : "AStar", methodName : "findPath", customParams : [tools_BinaryHeapPQ.top(this.opened).f]});
 				break;
 			}
 			if(cell == null) {
@@ -192,7 +190,7 @@ AStar.prototype = {
 				var adjCell = adjCells[_g];
 				++_g;
 				var isWallPresent = tools_IntPair.findWallBetweenTwoCells({ x : adjCell.x, y : adjCell.y},{ x : cell.x, y : cell.y},this.edges,this.size) != null;
-				if((!this.closed.has(adjCell) || cell.wallsDestroyed < adjCell.wallsDestroyed) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
+				if((!this.closed.has(adjCell) || cell.g <= adjCell.g - 10 || cell.wallsDestroyed < adjCell.wallsDestroyed && wasUnableToBreakWallSomewhere) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
 					if(!isWallPresent) {
 						if(this.opened.data.indexOf(adjCell) != -1) {
 							if(adjCell.g > cell.g + 10) {
@@ -202,8 +200,11 @@ AStar.prototype = {
 							this.updateCell(adjCell,cell);
 							tools_BinaryHeapPQ.insert(this.opened,$bind(this,this.cellComparator),adjCell);
 						}
-					} else if(adjCell.g == 0 || adjCell.g >= cell.g + 11) {
-						if(cell.wallsDestroyed < this.sledgehammerUses) {
+					} else {
+						if(cell.wallsDestroyed == this.sledgehammerUses - 1) {
+							wasUnableToBreakWallSomewhere = true;
+						}
+						if((adjCell.g == 0 || adjCell.g >= cell.g + 11) && cell.g < this.energy && cell.wallsDestroyed < this.sledgehammerUses) {
 							if(this.opened.data.indexOf(adjCell) != -1) {
 								if(adjCell.g >= cell.g + 10) {
 									this.updateWall(adjCell,cell);
@@ -1126,7 +1127,7 @@ ApplicationMain.main = function() {
 ApplicationMain.create = function(config) {
 	var app = new openfl_display_Application();
 	ManifestResources.init(config);
-	app.meta.h["build"] = "24";
+	app.meta.h["build"] = "25";
 	app.meta.h["company"] = "Company Name";
 	app.meta.h["file"] = "NextersTestOpenfl1";
 	app.meta.h["name"] = "NextersTestOpenfl1";
@@ -8649,10 +8650,16 @@ var _$Main_UiManager = function() {
 	c33.addComponent(c34);
 	var c35 = new haxe_ui_components_Button();
 	c35.set_id("isolationTestPresetButton");
-	c35.set_text("Isolation test case");
+	c35.set_text("Isolation");
 	c35.set_verticalAlign("center");
 	c35.set_percentWidth(100);
 	c33.addComponent(c35);
+	var c36 = new haxe_ui_components_Button();
+	c36.set_id("costOptimalityTestPresetButton");
+	c36.set_text("Cost optimality");
+	c36.set_verticalAlign("center");
+	c36.set_percentWidth(100);
+	c33.addComponent(c36);
 	this.addComponent(c33);
 	this.set_styleString("padding: 5px; spacing:10px;");
 	this.bindingRoot = true;
@@ -8670,6 +8677,7 @@ var _$Main_UiManager = function() {
 	this.energyDisplayLabel = c6;
 	this.endTurnButton = c11;
 	this.eConfig = c23;
+	this.costOptimalityTestPresetButton = c36;
 	this.addRandomWallsButton = c16;
 	this.addEnergyTextField = c15;
 	this.addEnergyButton = c14;
@@ -8684,6 +8692,9 @@ _$Main_UiManager.prototype = $extend(haxe_ui_containers_VBox.prototype,{
 		this.mazeBoxContainer.addChild(this.mazeSpriteContainer);
 		this.isolationTestPresetButton.set_onClick(function(e) {
 			Game.get_inst().maze.applyPreset(mazePreset_Presets.isolationPreset);
+		});
+		this.costOptimalityTestPresetButton.set_onClick(function(e) {
+			Game.get_inst().maze.applyPreset(mazePreset_Presets.costOptimalityPreset);
 		});
 	}
 	,getGameConfig: function() {
@@ -8734,6 +8745,7 @@ _$Main_UiManager.prototype = $extend(haxe_ui_containers_VBox.prototype,{
 	,energyDisplayLabel: null
 	,endTurnButton: null
 	,eConfig: null
+	,costOptimalityTestPresetButton: null
 	,addRandomWallsButton: null
 	,addEnergyTextField: null
 	,addEnergyButton: null
@@ -8753,7 +8765,7 @@ ManifestResources.init = function(config) {
 		ManifestResources.rootPath = "./";
 	}
 	var bundle;
-	var data = "{\"name\":null,\"assets\":\"aoy4:pathy17:assets%2Fmain.xmly4:sizei2707y4:typey4:TEXTy2:idR1y7:preloadtgoR0y20:assets%2Fdoomguy.pngR2i5625R3y5:IMAGER5R7R6tgh\",\"rootPath\":null,\"version\":2,\"libraryArgs\":[],\"libraryType\":null}";
+	var data = "{\"name\":null,\"assets\":\"aoy4:pathy17:assets%2Fmain.xmly4:sizei2811y4:typey4:TEXTy2:idR1y7:preloadtgoR0y20:assets%2Fdoomguy.pngR2i5625R3y5:IMAGER5R7R6tgh\",\"rootPath\":null,\"version\":2,\"libraryArgs\":[],\"libraryType\":null}";
 	var manifest = lime_utils_AssetManifest.parse(data,ManifestResources.rootPath);
 	var library = lime_utils_AssetLibrary.fromManifest(manifest);
 	lime_utils_Assets.registerLibrary("default",library);
@@ -95737,7 +95749,7 @@ tools_BinaryHeapPQ.deleteTop = function(pq,comparator) {
 tools_BinaryHeapPQ.isEmpty = function(pq) {
 	return pq.data.length == 0;
 };
-tools_BinaryHeapPQ.top = function(pq,comparator) {
+tools_BinaryHeapPQ.top = function(pq) {
 	return pq.data[0];
 };
 tools_BinaryHeapPQ.size = function(pq) {
@@ -97595,6 +97607,7 @@ lime_utils_UInt32Array.BYTES_PER_ELEMENT = 4;
 lime_utils_UInt8Array.BYTES_PER_ELEMENT = 1;
 lime_utils_UInt8ClampedArray.BYTES_PER_ELEMENT = 1;
 mazePreset_Presets.isolationPreset = { walls : [{ x1 : 2, y1 : 1, x2 : 2, y2 : 0},{ x1 : 3, y1 : 1, x2 : 3, y2 : 0},{ x1 : 4, y1 : 1, x2 : 4, y2 : 0},{ x1 : 2, y1 : 1, x2 : 1, y2 : 1},{ x1 : 2, y1 : 2, x2 : 1, y2 : 2},{ x1 : 2, y1 : 3, x2 : 1, y2 : 3},{ x1 : 2, y1 : 4, x2 : 2, y2 : 3},{ x1 : 3, y1 : 4, x2 : 3, y2 : 3},{ x1 : 4, y1 : 4, x2 : 4, y2 : 3},{ x1 : 4, y1 : 4, x2 : 4, y2 : 3},{ x1 : 5, y1 : 1, x2 : 4, y2 : 1},{ x1 : 5, y1 : 2, x2 : 4, y2 : 2},{ x1 : 5, y1 : 3, x2 : 4, y2 : 3},{ x1 : 1, y1 : 5, x2 : 1, y2 : 4},{ x1 : 2, y1 : 5, x2 : 2, y2 : 4},{ x1 : 3, y1 : 5, x2 : 3, y2 : 4},{ x1 : 4, y1 : 5, x2 : 4, y2 : 4},{ x1 : 5, y1 : 5, x2 : 5, y2 : 4},{ x1 : 1, y1 : 5, x2 : 1, y2 : 6},{ x1 : 2, y1 : 5, x2 : 2, y2 : 6},{ x1 : 3, y1 : 5, x2 : 3, y2 : 6},{ x1 : 4, y1 : 5, x2 : 4, y2 : 6},{ x1 : 5, y1 : 5, x2 : 5, y2 : 6},{ x1 : 1, y1 : 7, x2 : 1, y2 : 6},{ x1 : 2, y1 : 7, x2 : 2, y2 : 6},{ x1 : 3, y1 : 7, x2 : 3, y2 : 6},{ x1 : 4, y1 : 7, x2 : 4, y2 : 6},{ x1 : 5, y1 : 7, x2 : 5, y2 : 6},{ x1 : 1, y1 : 7, x2 : 1, y2 : 8},{ x1 : 2, y1 : 7, x2 : 2, y2 : 8},{ x1 : 3, y1 : 7, x2 : 3, y2 : 8},{ x1 : 4, y1 : 7, x2 : 4, y2 : 8},{ x1 : 5, y1 : 7, x2 : 5, y2 : 8},{ x1 : 2, y1 : 9, x2 : 2, y2 : 8},{ x1 : 3, y1 : 9, x2 : 3, y2 : 8},{ x1 : 4, y1 : 9, x2 : 4, y2 : 8},{ x1 : 2, y1 : 9, x2 : 1, y2 : 9},{ x1 : 2, y1 : 10, x2 : 1, y2 : 10},{ x1 : 2, y1 : 11, x2 : 1, y2 : 11},{ x1 : 2, y1 : 12, x2 : 2, y2 : 11},{ x1 : 3, y1 : 12, x2 : 3, y2 : 11},{ x1 : 4, y1 : 12, x2 : 4, y2 : 11},{ x1 : 4, y1 : 12, x2 : 4, y2 : 11},{ x1 : 5, y1 : 9, x2 : 4, y2 : 9},{ x1 : 5, y1 : 10, x2 : 4, y2 : 10},{ x1 : 5, y1 : 11, x2 : 4, y2 : 11}], heroCoord : { x : 3, y : 2}};
+mazePreset_Presets.costOptimalityPreset = { walls : [{ x1 : 0, y1 : 1, x2 : 0, y2 : 2},{ x1 : 1, y1 : 1, x2 : 1, y2 : 0},{ x1 : 1, y1 : 1, x2 : 0, y2 : 1},{ x1 : 1, y1 : 1, x2 : 1, y2 : 2},{ x1 : 1, y1 : 1, x2 : 2, y2 : 1},{ x1 : 0, y1 : 3, x2 : 0, y2 : 4},{ x1 : 1, y1 : 4, x2 : 0, y2 : 4},{ x1 : 1, y1 : 5, x2 : 1, y2 : 6},{ x1 : 0, y1 : 6, x2 : 1, y2 : 6},{ x1 : 1, y1 : 7, x2 : 1, y2 : 6}], heroCoord : { x : 0, y : 0}};
 openfl_Lib.__lastTimerID = 0;
 openfl_Lib.__sentWarnings = new haxe_ds_StringMap();
 openfl_Lib.__timers = new haxe_ds_IntMap();

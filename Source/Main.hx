@@ -61,6 +61,10 @@ private class UiManager extends VBox {
 		isolationTestPresetButton.onClick = ( e ) -> {
 			Game.inst.maze.applyPreset(Presets.isolationPreset);
 		};
+
+		costOptimalityTestPresetButton.onClick = (e) -> {
+			Game.inst.maze.applyPreset(Presets.costOptimalityPreset);
+		}
 	}
 
 	public function getGameConfig() : GameState {

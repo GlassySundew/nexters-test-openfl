@@ -77,4 +77,25 @@ class Presets {
 			y : 2
 		}
 	};
+
+	public static var costOptimalityPreset : Preset = {
+		walls : [
+			{ x1 : 0, y1 : 1, x2 : 0, y2 : 2 },
+			{ x1 : 1, y1 : 1, x2 : 1, y2 : 0 },
+			{ x1 : 1, y1 : 1, x2 : 0, y2 : 1 },
+			{ x1 : 1, y1 : 1, x2 : 1, y2 : 2 },
+			{ x1 : 1, y1 : 1, x2 : 2, y2 : 1 },
+			//
+			{ x1 : 0, y1 : 3, x2 : 0, y2 : 4 },
+			{ x1 : 1, y1 : 4, x2 : 0, y2 : 4 },
+			//
+			{ x1 : 1, y1 : 5, x2 : 1, y2 : 6 },
+			{ x1 : 0, y1 : 6, x2 : 1, y2 : 6 },
+			{ x1 : 1, y1 : 7, x2 : 1, y2 : 6 },
+		],
+		heroCoord : {
+			x : 0,
+			y : 0
+		}
+	};
 }

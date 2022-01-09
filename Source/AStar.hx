@@ -180,13 +180,15 @@ class AStar {
 		}
 		resultPath.push(start);
 
+		#if debug
 		trace("=============================================");
+		#end
 
 		return resultPath;
 	}
 
 	/**
-		@return true, if it is safe and will be no loops added
+		@return true, if it is safe and there will be no loops formed
 	**/
 	private function ensureThereWillBeNoLoops( adjCell : Cell, cell : Cell ) : Bool {
 		var parent = cell.parent;
@@ -199,9 +201,6 @@ class AStar {
 
 		return true;
 	}
-
-	private function endWasEverReached() : Bool
-		return end.parent != null;
 
 	/**
 		comparator for storing cell with lowest f higher
@@ -230,6 +229,8 @@ class AStar {
 
 		ignoredBrokenCells = new IgnoredWallsMap(new Map());
 
+		var wasUnableToBreakWallSomewhere = false;
+
 		while( !opened.isEmpty() ) {
 			var cell = null;
 
@@ -237,13 +238,20 @@ class AStar {
 			closed.add(cell);
 
 			#if debug
-			trace("moving to " + cell.x, cell.y, "wb: " + cell.wallsDestroyed,
-				cell.parent != null ? "p " + cell.parent.x + " " + cell.parent.y : "",
-				"walls destroyed in the last path: " + end.wallsDestroyed);
+			trace("moving to " + cell.x, cell.y, "f: " + cell.f + " wb: " + cell.wallsDestroyed,
+				((cell.parent != null) ? ("p " + cell.parent.x + " " + cell.parent.y) : ("")),
+				" walls destroyed in the last path: " + end.wallsDestroyed + " ewr " + end.parent != null);
 			#end
 
-			if ( cell == end )
+			// if ( end.parent != null && )
+			if ( end.parent != null
+				&& opened.top().f > end.f
+			) {
+
+				trace(end.f, opened.top().f);
+
 				break;
+			}
 
 			if ( cell == null ) return null;
 
@@ -258,7 +266,9 @@ class AStar {
 
 				if ( (
 					!closed.has(adjCell)
-					|| (cell.wallsDestroyed < adjCell.wallsDestroyed))
+					|| (cell.g <= adjCell.g - 10)
+					|| (cell.wallsDestroyed < adjCell.wallsDestroyed && wasUnableToBreakWallSomewhere) //
+				)
 					&& ensureThereWillBeNoLoops(adjCell, cell)
 				) {
 
@@ -272,17 +282,22 @@ class AStar {
 							opened.insert(cellComparator, adjCell);
 						}
 					} else {
+						if ( cell.wallsDestroyed == sledgehammerUses - 1 )
+							wasUnableToBreakWallSomewhere = true;
+
 						// adjCell is located over the wall
-						if ( adjCell.g == 0 || adjCell.g >= cell.g + 11 ) {
-							if ( cell.wallsDestroyed < sledgehammerUses ) {
-								if ( opened.data.contains(adjCell) ) {
-									if ( adjCell.g >= cell.g + 10 ) {
-										updateWall(adjCell, cell);
-									}
-								} else {
+						if ( (adjCell.g == 0 || adjCell.g >= cell.g + 11)
+							&& cell.g < energy
+							&& cell.wallsDestroyed < sledgehammerUses
+						) {
+
+							if ( opened.data.contains(adjCell) ) {
+								if ( adjCell.g >= cell.g + 10 ) {
 									updateWall(adjCell, cell);
-									opened.insert(cellComparator, adjCell);
 								}
+							} else {
+								updateWall(adjCell, cell);
+								opened.insert(cellComparator, adjCell);
 							}
 						}
 					}
