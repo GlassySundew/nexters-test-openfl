@@ -87,6 +87,17 @@ AStar.prototype = {
 	,brokenWalls: null
 	,cells: null
 	,ignoredBrokenCells: null
+	,ignoredBrokenCell: null
+	,set_ignoredBrokenCell: function(brokenCell) {
+		if(brokenCell == null) {
+			if(this.ignoredBrokenCell != null) {
+				IgnoredWallsMap.get(this.ignoredBrokenCells,this.ignoredBrokenCell.cell).delete(this.ignoredBrokenCell.parent);
+			}
+		} else {
+			IgnoredWallsMap.get(this.ignoredBrokenCells,brokenCell.cell).add(brokenCell.parent);
+		}
+		return this.ignoredBrokenCell = brokenCell;
+	}
 	,start: null
 	,end: null
 	,size: null
@@ -121,6 +132,13 @@ AStar.prototype = {
 		adjCell.f = adjCell.h + adjCell.g;
 		adjCell.wallsDestroyed = cell.wallsDestroyed;
 	}
+	,updateWall: function(adjCell,cell) {
+		this.updateCell(adjCell,cell);
+		adjCell.f += 1;
+		adjCell.g += 1;
+		adjCell.wallsDestroyed++;
+		adjCell.wallbreakingParent = cell;
+	}
 	,displayPath: function() {
 		var resultPath = [this.end];
 		var cell = this.end;
@@ -132,7 +150,7 @@ AStar.prototype = {
 			resultPath.push(cell);
 		}
 		resultPath.push(this.start);
-		haxe_Log.trace("=============================================",{ fileName : "Source/AStar.hx", lineNumber : 162, className : "AStar", methodName : "displayPath"});
+		haxe_Log.trace("=============================================",{ fileName : "Source/AStar.hx", lineNumber : 183, className : "AStar", methodName : "displayPath"});
 		return resultPath;
 	}
 	,ensureThereWillBeNoLoops: function(adjCell,cell) {
@@ -154,71 +172,16 @@ AStar.prototype = {
 	,findPath: function() {
 		var startIgnoringWallsFlag = false;
 		var refreshBrokenWallsFlag = false;
-		var ignoredBrokenCell = null;
 		var currentBestPath = new haxe_ds_ObjectMap();
-		var currentBestPathArray = [];
 		var runMode = RunMode.FirstRun;
 		this.ignoredBrokenCells = IgnoredWallsMap._new(new haxe_ds_ObjectMap());
-		var costOptimizedOnce = false;
 		while(!tools_BinaryHeapPQ.isEmpty(this.opened)) {
 			var cell = null;
 			cell = tools_BinaryHeapPQ.deleteTop(this.opened,$bind(this,this.cellComparator));
 			this.closed.add(cell);
-			haxe_Log.trace("moving to " + cell.x,{ fileName : "Source/AStar.hx", lineNumber : 231, className : "AStar", methodName : "findPath", customParams : [cell.y,"wb: " + cell.wallsDestroyed,cell.parent != null ? "p " + cell.parent.x + " " + cell.parent.y : "","walls destroyed in the last path: " + this.end.wallsDestroyed]});
+			haxe_Log.trace("moving to " + cell.x,{ fileName : "Source/AStar.hx", lineNumber : 248, className : "AStar", methodName : "findPath", customParams : [cell.y,"wb: " + cell.wallsDestroyed,cell.parent != null ? "p " + cell.parent.x + " " + cell.parent.y : "","walls destroyed in the last path: " + this.end.wallsDestroyed]});
 			if(cell == this.end) {
-				if(this.end.parent != null) {
-					if(this.end.wallsDestroyed > this.sledgehammerUses) {
-						runMode = RunMode.WallsMinimize;
-					} else {
-						if(runMode != RunMode.CostOptimize) {
-							this.closed = new Set();
-						}
-						runMode = RunMode.CostOptimize;
-					}
-				}
-				startIgnoringWallsFlag = true;
-				if(runMode == RunMode.CostOptimize || this.brokenWalls.length == 0) {
-					refreshBrokenWallsFlag = true;
-				}
-				if(runMode == RunMode.WallsMinimize) {
-					this.closed = new Set();
-				}
-				if(ignoredBrokenCell != null) {
-					haxe_Log.trace("adding cell to permanent ignore list " + ignoredBrokenCell.x,{ fileName : "Source/AStar.hx", lineNumber : 253, className : "AStar", methodName : "findPath", customParams : [ignoredBrokenCell.y," wbp: " + ignoredBrokenCell.wallbreakingParent.x,ignoredBrokenCell.wallbreakingParent.y,runMode]});
-					IgnoredWallsMap.get(this.ignoredBrokenCells,ignoredBrokenCell).add(ignoredBrokenCell.wallbreakingParent);
-					ignoredBrokenCell = null;
-				}
-			}
-			if(refreshBrokenWallsFlag) {
-				haxe_Log.trace("refreshing walls",{ fileName : "Source/AStar.hx", lineNumber : 261, className : "AStar", methodName : "findPath"});
-				refreshBrokenWallsFlag = false;
-				this.brokenWalls = [];
-				var pathCell = this.end;
-				currentBestPath = new haxe_ds_ObjectMap();
-				currentBestPathArray = [];
-				while(pathCell != null) {
-					var v = { oldG : pathCell.g, oldWallsBroken : pathCell.wallsDestroyed};
-					currentBestPath.set(pathCell,v);
-					currentBestPathArray.push(pathCell);
-					pathCell.lastPathParent = pathCell.parent;
-					if(!IgnoredWallsMap.get(this.ignoredBrokenCells,pathCell).has(pathCell.parent) && pathCell.parent != null && tools_IntPair.findWallBetweenTwoCells({ x : pathCell.x, y : pathCell.y},{ x : pathCell.parent.x, y : pathCell.parent.y},this.edges,this.size) != null) {
-						this.brokenWalls.push(pathCell);
-					}
-					pathCell = pathCell.parent;
-				}
-			}
-			if(startIgnoringWallsFlag && this.brokenWalls.length == 0 && this.end.wallsDestroyed <= this.sledgehammerUses) {
-				haxe_Log.trace("exiting with no walls in cache",{ fileName : "Source/AStar.hx", lineNumber : 294, className : "AStar", methodName : "findPath"});
-				return this.displayPath();
-			}
-			if(startIgnoringWallsFlag && this.brokenWalls.length > 0) {
-				var brokenWall = this.brokenWalls.pop();
-				ignoredBrokenCell = brokenWall;
-				haxe_Log.trace("popping " + brokenWall.x + " " + brokenWall.y + " wbp: " + (brokenWall.wallbreakingParent != null ? brokenWall.wallbreakingParent.x + " " + brokenWall.wallbreakingParent.y : ""),{ fileName : "Source/AStar.hx", lineNumber : 304, className : "AStar", methodName : "findPath"});
-				startIgnoringWallsFlag = false;
-				haxe_Log.trace("broken wall in cache left after filtering : " + this.brokenWalls.length,{ fileName : "Source/AStar.hx", lineNumber : 310, className : "AStar", methodName : "findPath"});
-				this.opened.data = [this.start];
-				continue;
+				break;
 			}
 			if(cell == null) {
 				return null;
@@ -229,39 +192,35 @@ AStar.prototype = {
 				var adjCell = adjCells[_g];
 				++_g;
 				var isWallPresent = tools_IntPair.findWallBetweenTwoCells({ x : adjCell.x, y : adjCell.y},{ x : cell.x, y : cell.y},this.edges,this.size) != null;
-				if(ignoredBrokenCell != null && runMode == RunMode.CostOptimize && currentBestPath.h[adjCell.__id__] != null && cell.g > currentBestPath.h[adjCell.__id__].oldG + 10 && !isWallPresent) {
-					ignoredBrokenCell = null;
-					startIgnoringWallsFlag = true;
-					haxe_Log.trace("dropping cell looking at " + adjCell.x,{ fileName : "Source/AStar.hx", lineNumber : 363, className : "AStar", methodName : "findPath", customParams : [adjCell.y,"wd: " + adjCell.wallsDestroyed,runMode]});
-					continue;
-				}
-				if((!this.closed.has(adjCell) || cell.g < adjCell.g - 11) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
+				if((!this.closed.has(adjCell) || cell.wallsDestroyed < adjCell.wallsDestroyed) && this.ensureThereWillBeNoLoops(adjCell,cell)) {
 					if(!isWallPresent) {
 						if(this.opened.data.indexOf(adjCell) != -1) {
-							if(cell.g <= adjCell.g - 10) {
+							if(adjCell.g > cell.g + 10) {
 								this.updateCell(adjCell,cell);
 							}
 						} else {
 							this.updateCell(adjCell,cell);
 							tools_BinaryHeapPQ.insert(this.opened,$bind(this,this.cellComparator),adjCell);
 						}
-					} else if(adjCell.g == 0 || cell.g <= adjCell.g - 10 || runMode == RunMode.WallsMinimize) {
-						if(cell.g < this.energy && (runMode != RunMode.CostOptimize || cell.wallsDestroyed < this.sledgehammerUses) && ((ignoredBrokenCell == null || adjCell != ignoredBrokenCell && cell != currentBestPathArray[currentBestPathArray.indexOf(ignoredBrokenCell) + 1]) && !IgnoredWallsMap.get(this.ignoredBrokenCells,adjCell).has(cell))) {
-							this.updateCell(adjCell,cell);
-							adjCell.g += 1;
-							adjCell.f += 1;
-							tools_BinaryHeapPQ.insert(this.opened,$bind(this,this.cellComparator),adjCell);
-							adjCell.wallsDestroyed++;
-							adjCell.wallbreakingParent = cell;
+					} else if(adjCell.g == 0 || adjCell.g >= cell.g + 11) {
+						if(cell.wallsDestroyed < this.sledgehammerUses) {
+							if(this.opened.data.indexOf(adjCell) != -1) {
+								if(adjCell.g >= cell.g + 10) {
+									this.updateWall(adjCell,cell);
+								}
+							} else {
+								this.updateWall(adjCell,cell);
+								tools_BinaryHeapPQ.insert(this.opened,$bind(this,this.cellComparator),adjCell);
+							}
 						}
 					}
 				}
 			}
 		}
-		haxe_Log.trace("leaving the loop",{ fileName : "Source/AStar.hx", lineNumber : 409, className : "AStar", methodName : "findPath"});
 		return this.displayPath();
 	}
 	,__class__: AStar
+	,__properties__: {set_ignoredBrokenCell:"set_ignoredBrokenCell"}
 };
 var lime_app_IModule = function() { };
 $hxClasses["lime.app.IModule"] = lime_app_IModule;
@@ -1167,7 +1126,7 @@ ApplicationMain.main = function() {
 ApplicationMain.create = function(config) {
 	var app = new openfl_display_Application();
 	ManifestResources.init(config);
-	app.meta.h["build"] = "23";
+	app.meta.h["build"] = "24";
 	app.meta.h["company"] = "Company Name";
 	app.meta.h["file"] = "NextersTestOpenfl1";
 	app.meta.h["name"] = "NextersTestOpenfl1";
@@ -44563,7 +44522,7 @@ var lime_utils_AssetCache = function() {
 	this.audio = new haxe_ds_StringMap();
 	this.font = new haxe_ds_StringMap();
 	this.image = new haxe_ds_StringMap();
-	this.version = 489602;
+	this.version = 841128;
 };
 $hxClasses["lime.utils.AssetCache"] = lime_utils_AssetCache;
 lime_utils_AssetCache.__name__ = "lime.utils.AssetCache";

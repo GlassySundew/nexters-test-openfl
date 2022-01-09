@@ -24,7 +24,7 @@
 -D web
 --remap flash:openfl
 --connect
-6000
+6001
 -js Export/html5/bin/NextersTestOpenfl1.js
 -cp Export/html5/haxe
 -D html5
