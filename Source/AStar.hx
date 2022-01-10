@@ -27,8 +27,6 @@ class Cell {
 	public var f : Int;
 	public var parent : Cell;
 	public var wallsDestroyed : Int;
-	public var wallbreakingParent : Cell;
-	public var lastPathParent : Cell;
 
 	public function new( x : Int, y : Int ) {
 		this.x = x;
@@ -68,23 +66,7 @@ class AStar {
 	private var closed : Set<Cell>;
 
 	/** mark all cells that are cut off with walls from the one we are in **/
-	private var brokenWalls : Array<Cell>;
 	private var cells : Array<Array<Cell>>;
-
-	// private var ignoredBrokenCells : Set<Cell>;
-	private var ignoredBrokenCells : IgnoredWallsMap;
-	private var ignoredBrokenCell(default, set) : { cell : Cell, parent : Cell };
-
-	function set_ignoredBrokenCell( brokenCell : { cell : Cell, parent : Cell } ) {
-
-		if ( brokenCell == null ) {
-			if ( ignoredBrokenCell != null )
-				ignoredBrokenCells[ignoredBrokenCell.cell].delete(ignoredBrokenCell.parent);
-		} else
-			ignoredBrokenCells[brokenCell.cell].add(brokenCell.parent);
-
-		return ignoredBrokenCell = brokenCell;
-	}
 
 	private var start : Cell;
 	private var end : Cell;
@@ -119,10 +101,7 @@ class AStar {
 		this.teleportRadius = teleportRadius;
 		this.size = size;
 		this.edges = new Set(edges);
-		this.brokenWalls = brokenWalls == null ? [] : brokenWalls;
 		this.closed = new Set(closed);
-
-		// this.ignoredBrokenCells = new Set();
 
 		cells = [for ( y in 0...size ) [for ( x in 0...size ) new Cell(x, y)]];
 
@@ -166,7 +145,6 @@ class AStar {
 		adjCell.f += 1;
 		adjCell.g += 1;
 		adjCell.wallsDestroyed++;
-		adjCell.wallbreakingParent = cell;
 	}
 
 	private function displayPath() {
@@ -214,21 +192,7 @@ class AStar {
 	**/
 	public function findPath() {
 
-		// если true, то в этой итерации цикла будут собраны все стены в действующем пути до выхода
-		// и проверены на более оптимальный путь путём игнорирования при обходе со start
-		var startIgnoringWallsFlag = false;
-		// если true, то с конца в начало будет произведена проверка на все
-		// действующие в пути сломанные стены
-		var refreshBrokenWallsFlag = false;
-
-		// используется для проверки нахождения лучшего пути, если при повторном обходе была
-		// найдена в соседних ячейках adjCell ячейка из действующего самого оптимального пути
-		// со стоимостью ниже, чем в данной клетке, то данный обход дропается и игнорируемая
-		// стена не сохраняется, делается попытка проигнорировать следующую стену и обойти граф снова
-		var currentBestPath : Map<Cell, { oldG : Int, oldWallsBroken : Int }> = new Map();
-
-		ignoredBrokenCells = new IgnoredWallsMap(new Map());
-
+		if ( start == end ) return null;
 		var wasUnableToBreakWallSomewhere = false;
 
 		while( !opened.isEmpty() ) {
@@ -238,18 +202,13 @@ class AStar {
 			closed.add(cell);
 
 			#if debug
-			trace("moving to " + cell.x, cell.y, "f: " + cell.f + " wb: " + cell.wallsDestroyed,
-				((cell.parent != null) ? ("p " + cell.parent.x + " " + cell.parent.y) : ("")),
-				" walls destroyed in the last path: " + end.wallsDestroyed + " ewr " + end.parent != null);
+			trace("moving to " + cell.x, cell.y, "f: " + cell.f + " wd: " + cell.wallsDestroyed,
+				"wd in last path: " + end.wallsDestroyed, "ewr " + Std.string(end.parent != null),
+				((cell.parent != null) ? ("p " + cell.parent.x + " " + cell.parent.y) : (""))
+			);
 			#end
 
-			// if ( end.parent != null && )
-			if ( end.parent != null
-				&& opened.top().f > end.f
-			) {
-
-				trace(end.f, opened.top().f);
-
+			if ( end.parent != null && opened.top().f > start.h + 10 ) {
 				break;
 			}
 
@@ -266,7 +225,7 @@ class AStar {
 
 				if ( (
 					!closed.has(adjCell)
-					|| (cell.g <= adjCell.g - 10)
+					|| (cell.g <= adjCell.g - 10 && !wasUnableToBreakWallSomewhere)
 					|| (cell.wallsDestroyed < adjCell.wallsDestroyed && wasUnableToBreakWallSomewhere) //
 				)
 					&& ensureThereWillBeNoLoops(adjCell, cell)
@@ -285,9 +244,9 @@ class AStar {
 						if ( cell.wallsDestroyed == sledgehammerUses - 1 )
 							wasUnableToBreakWallSomewhere = true;
 
-						// adjCell is located over the wall
+						// adjCell is located over a wall
 						if ( (adjCell.g == 0 || adjCell.g >= cell.g + 11)
-							&& cell.g < energy
+							&& cell.g - cell.wallsDestroyed < energy
 							&& cell.wallsDestroyed < sledgehammerUses
 						) {
 
