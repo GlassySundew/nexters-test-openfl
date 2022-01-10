@@ -13,12 +13,6 @@ typedef Point = {
 	public var y : Int;
 }
 
-enum RunMode {
-	FirstRun;
-	WallsMinimize;
-	CostOptimize;
-}
-
 class Cell {
 	public var x : Int;
 	public var y : Int;
@@ -35,23 +29,6 @@ class Cell {
 		this.h = 0;
 		this.f = 0;
 		this.wallsDestroyed = 0;
-	}
-}
-
-/**
-	ключ - клетка, всегда ближайшая к выходу, занчение(сэт) это все клетки между которыми и у 
-	клетки - ключа есть игнорируемая стена
-**/
-abstract IgnoredWallsMap( Map<Cell, Set<Cell>> ) {
-
-	public function new( s ) this = s;
-
-	@:arrayAccess
-	function get( cell : Cell ) {
-		if ( this.get(cell) == null )
-			this[cell] = new Set();
-
-		return this[cell];
 	}
 }
 
@@ -208,7 +185,8 @@ class AStar {
 			);
 			#end
 
-			if ( end.parent != null && opened.top().f > start.h + 10 ) {
+			if ( end.parent != null // && opened.top().f > end.f + (end.g - start.h) + 10
+			) {
 				break;
 			}
 
